@@ -4,18 +4,51 @@ import LogoutButton from "@/components/LogoutButton";
 
 export default async function WorkflowsPage() {
   const supabase = await createSupabaseServerClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect("/login");
+  if (!user) redirect("/login");
+
+  const { data: workflows } = await supabase
+    .from("workflows")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  async function createWorkflow() {
+    "use server";
+
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) redirect("/login");
+
+    await supabase.from("workflows").insert({
+      user_id: user.id,
+      name: "Untitled Workflow",
+    });
+
+    redirect("/workflows");
   }
 
   return (
-    <div>
+    <div style={{ padding: 24 }}>
       <h1>Your Workflows</h1>
-      <p>Welcome, {user.email}</p>
+
+      <form action={createWorkflow}>
+        <button>Create Workflow</button>
+      </form>
+
+      <ul>
+        {workflows?.map((wf: any) => (
+          <li key={wf.id}>
+            <a href={`/workflows/${wf.id}`}>{wf.name}</a>
+          </li>
+        ))}
+      </ul>
       <LogoutButton />
     </div>
   );
