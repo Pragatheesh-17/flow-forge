@@ -1,12 +1,70 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolveTemplate } from "./template";
 
 async function executeAI(config: any, input: any) {
-  return input;
+  if (!config?.prompt_template) {
+    throw new Error("AI_TRANSFORM node missing prompt_template");
+  }
+
+  const prompt = config.prompt_template.replace(
+    "{{input}}",
+    typeof input === "string" ? input : JSON.stringify(input)
+  );
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error("Gemini API failed");
+  }
+
+  const data = await res.json();
+
+  return data.candidates?.[0]?.content?.parts?.[0]?.text;
 }
 
+
 async function executeHttp(config: any, input: any) {
-  return input;
+  if (!config?.url) {
+    throw new Error("HTTP_REQUEST node missing url");
+  }
+
+  const method = config.method || "POST";
+
+  let body = undefined;
+
+  if (config.body) {
+    body = JSON.stringify({
+      ...config.body,
+      input,
+    });
+  }
+
+  const res = await fetch(config.url, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body,
+  });
+
+  if (!res.ok) {
+    throw new Error(`HTTP request failed with status ${res.status}`);
+  }
+
+  return await res.json();
 }
+
 
 export async function executeWorkflow({
   workflowId,
@@ -69,7 +127,8 @@ export async function executeWorkflow({
           break;
 
         case "HTTP_REQUEST":
-          nodeOutput = await executeHttp(node.config, nodeInput);
+          const resolvedConfig = resolveTemplate(node.config, { input: nodeInput });
+          nodeOutput = await executeHttp(resolvedConfig, nodeInput);
           break;
 
         default:
