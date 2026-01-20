@@ -1,31 +1,30 @@
 export async function executeHttp(config: any, input: any) {
-  const body =
-    typeof config.body === "object"
-      ? JSON.stringify({ ...config.body, input })
-      : null;
+  if (!config?.url) {
+    throw new Error("HTTP_REQUEST node missing url");
+  }
+
+  const method = config.method || "POST";
+
+  let body = undefined;
+
+  if (config.body) {
+    body = JSON.stringify({
+      ...config.body,
+      input,
+    });
+  }
 
   const res = await fetch(config.url, {
-    method: config.method || "POST",
-    headers: { "Content-Type": "application/json" },
+    method,
+    headers: {
+      "Content-Type": "application/json",
+    },
     body,
   });
 
-  const responseData = await res.json();
-
-  // Extract specific path from response if configured
-  if (config.response_path) {
-    const keys = config.response_path.split(".");
-    let result = responseData;
-
-    for (const key of keys) {
-      result = result[key];
-      if (result === undefined) {
-        throw new Error(`Response path "${config.response_path}" not found`);
-      }
-    }
-
-    return result;
+  if (!res.ok) {
+    throw new Error(`HTTP request failed with status ${res.status}`);
   }
 
-  return responseData;
+  return await res.json();
 }
