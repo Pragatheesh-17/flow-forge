@@ -17,7 +17,7 @@ export async function executeWorkflow({
   const supabase = await createSupabaseServerClient();
 
   // Create workflow run
-  const { data: run } = await supabase
+  const { data: run, error: runError } = await supabase
     .from("workflow_runs")
     .insert({
       workflow_id: workflowId,
@@ -27,6 +27,10 @@ export async function executeWorkflow({
     })
     .select()
     .single();
+
+  if (runError || !run) {
+    throw new Error(`Failed to create workflow run: ${runError?.message}`);
+  }
 
   let lastOutput: any = input;
   const context: Record<string, any> = {};
@@ -43,7 +47,7 @@ export async function executeWorkflow({
       const nodeInput = lastOutput;
 
       // Create node run
-      const { data: nodeRun } = await supabase
+      const { data: nodeRun, error: nodeRunError } = await supabase
         .from("node_runs")
         .insert({
           workflow_run_id: run.id,
@@ -53,6 +57,10 @@ export async function executeWorkflow({
         })
         .select()
         .single();
+
+      if (nodeRunError || !nodeRun) {
+        throw new Error(`Failed to create node run: ${nodeRunError?.message}`);
+      }
 
       let nodeOutput;
 

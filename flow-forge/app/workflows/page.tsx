@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import LogoutButton from "@/components/LogoutButton";
+import crypto from "crypto";
 
 export default async function WorkflowsPage() {
   const supabase = await createSupabaseServerClient();
@@ -18,7 +19,7 @@ export default async function WorkflowsPage() {
 
   async function createWorkflow() {
     "use server";
-
+    const webhookId = crypto.randomBytes(16).toString("hex");
     const supabase = await createSupabaseServerClient();
     const {
       data: { user },
@@ -26,10 +27,15 @@ export default async function WorkflowsPage() {
 
     if (!user) redirect("/login");
 
-    await supabase.from("workflows").insert({
+    const { data, error } = await supabase.from("workflows").insert({
       user_id: user.id,
       name: "Untitled Workflow",
-    });
+      webhook_id: webhookId,
+    }).select();
+
+    if (error) {
+      throw error;
+    }
 
     redirect("/workflows");
   }

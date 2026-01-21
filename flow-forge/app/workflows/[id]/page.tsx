@@ -60,6 +60,14 @@ export default async function WorkflowEditor({
       <h2>{workflow.name}</h2>
       <p>{workflow.description}</p>
 
+      <p>
+        <strong>Webhook URL:</strong>
+        <br />
+        <code>
+          {`${process.env.NEXT_PUBLIC_BASE_URL}/api/webhook/${workflow.webhook_id}`}
+        </code>
+      </p>
+
       <h3>Steps</h3>
 
       {nodes?.map((node: any) => (
