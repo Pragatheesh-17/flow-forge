@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { resolveTemplate } from "./template";
 import { executeRAG } from "./rag";
 import { executeAI } from "./ai";
@@ -16,8 +17,8 @@ export async function executeWorkflow({
 }) {
   const supabase = await createSupabaseServerClient();
 
-  // Create workflow run
-  const { data: run, error: runError } = await supabase
+  // Create workflow run (using admin client to bypass RLS)
+  const { data: run, error: runError } = await supabaseAdmin
     .from("workflow_runs")
     .insert({
       workflow_id: workflowId,
@@ -35,8 +36,8 @@ export async function executeWorkflow({
   let lastOutput: any = input;
   const context: Record<string, any> = {};
 
-  // Fetch nodes
-  const { data: nodes } = await supabase
+  // Fetch nodes (using admin client to bypass RLS)
+  const { data: nodes } = await supabaseAdmin
     .from("workflow_nodes")
     .select("*")
     .eq("workflow_id", workflowId)
@@ -46,8 +47,8 @@ export async function executeWorkflow({
     for (const node of nodes || []) {
       const nodeInput = lastOutput;
 
-      // Create node run
-      const { data: nodeRun, error: nodeRunError } = await supabase
+      // Create node run (using admin client to bypass RLS)
+      const { data: nodeRun, error: nodeRunError } = await supabaseAdmin
         .from("node_runs")
         .insert({
           workflow_run_id: run.id,
@@ -87,8 +88,8 @@ export async function executeWorkflow({
           throw new Error(`Unsupported node type: ${node.type}`);
       }
 
-      // Save node output
-      await supabase
+      // Save node output (using admin client to bypass RLS)
+      await supabaseAdmin
         .from("node_runs")
         .update({
           output: nodeOutput,
@@ -100,8 +101,8 @@ export async function executeWorkflow({
       lastOutput = nodeOutput;
     }
 
-    // Mark workflow success
-    await supabase
+    // Mark workflow success (using admin client to bypass RLS)
+    await supabaseAdmin
       .from("workflow_runs")
       .update({
         output: lastOutput,
@@ -111,7 +112,7 @@ export async function executeWorkflow({
 
     return lastOutput;
   } catch (err: any) {
-    await supabase
+    await supabaseAdmin
       .from("workflow_runs")
       .update({
         status: "FAILED",

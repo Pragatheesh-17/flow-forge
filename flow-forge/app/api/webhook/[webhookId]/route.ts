@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { executeWorkflow } from "@/lib/worflow/engine";
 
 export async function POST(
@@ -9,10 +9,8 @@ export async function POST(
   try {
     const { webhookId } = await params;
     
-    const supabase = await createSupabaseServerClient();
-
-    // 1️⃣ Find workflow
-    const { data: workflow, error } = await supabase
+    // 1️⃣ Find workflow (using admin client to bypass RLS)
+    const { data: workflow, error } = await supabaseAdmin
       .from("workflows")
       .select("*")
       .eq("webhook_id", webhookId)
