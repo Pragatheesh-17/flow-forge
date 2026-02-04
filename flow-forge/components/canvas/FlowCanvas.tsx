@@ -19,6 +19,8 @@ type DbNode = {
   id: string;
   type: string;
   position: number;
+  pos_x?: number | null;
+  pos_y?: number | null;
   config?: any;
 };
 
@@ -35,6 +37,23 @@ export default function FlowCanvas({ nodes }: { nodes: DbNode[] }) {
   useEffect(() => {
     setFlowNodes((prev) => {
       if (prev.length === 0 && dbNodes.length > 0) {
+        const hasStoredPositions = dbNodes.some(
+          (node) =>
+            typeof node.pos_x === "number" && typeof node.pos_y === "number"
+        );
+
+        if (hasStoredPositions) {
+          return dbNodes.map((node) => ({
+            id: node.id,
+            type: node.type,
+            position: {
+              x: typeof node.pos_x === "number" ? node.pos_x : 0,
+              y: typeof node.pos_y === "number" ? node.pos_y : 0,
+            },
+            data: node,
+          }));
+        }
+
         const layout = horizontalLayout(
           dbNodes.map((node) => ({
             id: node.id,
@@ -124,11 +143,17 @@ export default function FlowCanvas({ nodes }: { nodes: DbNode[] }) {
     const updates = ordered.map((node, index) => ({
       id: node.id,
       position: index,
+      pos_x: node.position.x,
+      pos_y: node.position.y,
     }));
 
     const sameOrder = updates.every((update) => {
       const current = dbNodes.find((node) => node.id === update.id);
-      return current?.position === update.position;
+      return (
+        current?.position === update.position &&
+        current?.pos_x === update.pos_x &&
+        current?.pos_y === update.pos_y
+      );
     });
 
     if (sameOrder) return;
@@ -136,7 +161,14 @@ export default function FlowCanvas({ nodes }: { nodes: DbNode[] }) {
     setDbNodes((prev) =>
       prev.map((node) => {
         const update = updates.find((u) => u.id === node.id);
-        return update ? { ...node, position: update.position } : node;
+        return update
+          ? {
+              ...node,
+              position: update.position,
+              pos_x: update.pos_x,
+              pos_y: update.pos_y,
+            }
+          : node;
       })
     );
 

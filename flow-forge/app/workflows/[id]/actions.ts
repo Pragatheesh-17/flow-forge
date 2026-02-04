@@ -23,12 +23,17 @@ export async function addNode(workflowId: string, formData: FormData) {
     .select("*", { count: "exact", head: true })
     .eq("workflow_id", workflowId);
 
+  const x = 100 + (count ?? 0) * 250;
+  const y = 100;
+
   const { data, error } = await supabase
     .from("workflow_nodes")
     .insert({
       workflow_id: workflowId,
       type,
       position: count ?? 0,
+      pos_x: x,
+      pos_y: y,
       config: getDefaultNodeConfig(type as (typeof NODE_TYPES)[number]),
     })
     .select()
@@ -60,7 +65,7 @@ export async function updateNode(
 }
 
 export async function reorderNodes(
-  updates: { id: string; position: number }[]
+  updates: { id: string; position: number; pos_x: number; pos_y: number }[]
 ) {
   const supabase = await createSupabaseServerClient();
 
@@ -74,7 +79,11 @@ export async function reorderNodes(
     updates.map((update) =>
       supabase
         .from("workflow_nodes")
-        .update({ position: update.position })
+        .update({
+          position: update.position,
+          pos_x: update.pos_x,
+          pos_y: update.pos_y,
+        })
         .eq("id", update.id)
     )
   );
