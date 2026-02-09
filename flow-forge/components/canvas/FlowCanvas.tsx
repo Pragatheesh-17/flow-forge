@@ -5,12 +5,13 @@ import ReactFlow, {
   Background,
   Controls,
   MiniMap,
+  addEdge,
+  useEdgesState,
   useNodesState,
 } from "reactflow";
 import "reactflow/dist/style.css";
 
 import { nodeTypes } from "./nodes";
-import { createEdges } from "@/lib/canvas/transformers";
 import { horizontalLayout } from "@/lib/canvas/layout";
 import NodeConfigPanel from "./NodeConfigPanel";
 import { reorderNodes, updateNode } from "@/app/workflows/[id]/actions";
@@ -24,7 +25,43 @@ type DbNode = {
   config?: any;
 };
 
-export default function FlowCanvas({ nodes }: { nodes: DbNode[] }) {
+type DbEdge = {
+  id: string;
+  source_node_id: string;
+  target_node_id: string;
+};
+
+type NodeRun = {
+  id: string;
+  node_id: string;
+  input: any;
+  output: any;
+  created_at?: string;
+};
+
+export default function FlowCanvas({
+  nodes,
+  edges: dbEdges,
+  nodeRuns,
+  latestRunAt,
+  addEdgeAction,
+  deleteNodeAction,
+  deleteEdgeAction,
+  onEdgeAdded,
+  onEdgesDeleted,
+  onNodesDeleted,
+}: {
+  nodes: DbNode[];
+  edges: DbEdge[];
+  nodeRuns: NodeRun[];
+  latestRunAt: string | null;
+  addEdgeAction: (source: string, target: string) => Promise<DbEdge>;
+  deleteNodeAction: (nodeId: string) => Promise<void>;
+  deleteEdgeAction: (edgeId: string) => Promise<void>;
+  onEdgeAdded?: (edge: DbEdge) => void;
+  onEdgesDeleted?: (ids: string[]) => void;
+  onNodesDeleted?: (ids: string[]) => void;
+}) {
   const [dbNodes, setDbNodes] = useState<DbNode[]>(nodes);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
@@ -33,6 +70,7 @@ export default function FlowCanvas({ nodes }: { nodes: DbNode[] }) {
   }, [nodes]);
 
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   useEffect(() => {
     setFlowNodes((prev) => {
@@ -101,12 +139,47 @@ export default function FlowCanvas({ nodes }: { nodes: DbNode[] }) {
     });
   }, [dbNodes, setFlowNodes]);
 
-  const edges = useMemo(() => createEdges(dbNodes), [dbNodes]);
+  useEffect(() => {
+    const nodeIds = new Set(dbNodes.map((node) => node.id));
+    setEdges(
+      dbEdges
+        .filter(
+          (edge) =>
+            nodeIds.has(edge.source_node_id) &&
+            nodeIds.has(edge.target_node_id)
+        )
+        .map((edge) => ({
+          id: edge.id,
+          source: edge.source_node_id,
+          target: edge.target_node_id,
+          animated: true,
+        }))
+    );
+  }, [dbNodes, dbEdges, setEdges]);
 
   const selectedNode =
     selectedNodeId === null
       ? null
       : dbNodes.find((node) => node.id === selectedNodeId) ?? null;
+
+  const outputByNodeId = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const run of nodeRuns) {
+      map.set(run.node_id, run.output);
+    }
+    return map;
+  }, [nodeRuns]);
+
+  const upstreamOutputs = useMemo(() => {
+    if (!selectedNodeId) return [];
+    const sourceIds = dbEdges
+      .filter((edge) => edge.target_node_id === selectedNodeId)
+      .map((edge) => edge.source_node_id);
+    return sourceIds.map((id) => ({
+      nodeId: id,
+      output: outputByNodeId.get(id),
+    }));
+  }, [dbEdges, outputByNodeId, selectedNodeId]);
 
   const handleNodeClick = useCallback((_: any, node: { id: string }) => {
     setSelectedNodeId(node.id);
@@ -115,6 +188,19 @@ export default function FlowCanvas({ nodes }: { nodes: DbNode[] }) {
   const handleClosePanel = useCallback(() => {
     setSelectedNodeId(null);
   }, []);
+
+  const handleDeleteNode = useCallback(
+    async (nodeId: string) => {
+      await deleteNodeAction(nodeId);
+      setDbNodes((prev) => prev.filter((node) => node.id !== nodeId));
+      setSelectedNodeId(null);
+      onNodesDeleted?.([nodeId]);
+      setEdges((prev) =>
+        prev.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
+      );
+    },
+    [deleteNodeAction, onNodesDeleted, setEdges]
+  );
 
   const handleSaveNode = useCallback(async (updatedNode: DbNode) => {
     await updateNode(updatedNode.id, {
@@ -183,6 +269,40 @@ export default function FlowCanvas({ nodes }: { nodes: DbNode[] }) {
         nodeTypes={nodeTypes}
         fitView
         onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={async (connection) => {
+          if (!connection.source || !connection.target) return;
+          const created = await addEdgeAction(
+            connection.source,
+            connection.target
+          );
+          onEdgeAdded?.(created);
+          setEdges((prev) =>
+            addEdge(
+              {
+                id: created.id,
+                source: created.source_node_id,
+                target: created.target_node_id,
+                animated: true,
+              },
+              prev
+            )
+          );
+        }}
+        onNodesDelete={async (deleted) => {
+          const ids = deleted.map((node) => node.id);
+          if (ids.length === 0) return;
+          await Promise.all(ids.map((id) => deleteNodeAction(id)));
+          setDbNodes((prev) => prev.filter((node) => !ids.includes(node.id)));
+          onNodesDeleted?.(ids);
+        }}
+        onEdgesDelete={async (deleted) => {
+          const ids = deleted.map((edge) => edge.id);
+          if (ids.length === 0) return;
+          await Promise.all(ids.map((id) => deleteEdgeAction(id)));
+          onEdgesDeleted?.(ids);
+        }}
+        deleteKeyCode={["Backspace", "Delete"]}
         onNodeClick={handleNodeClick}
         onNodeDragStop={handleNodeDragStop}
       >
@@ -192,8 +312,11 @@ export default function FlowCanvas({ nodes }: { nodes: DbNode[] }) {
       </ReactFlow>
       <NodeConfigPanel
         node={selectedNode}
+        latestRunAt={latestRunAt}
+        upstreamOutputs={upstreamOutputs}
         onClose={handleClosePanel}
         onSave={handleSaveNode}
+        onDelete={handleDeleteNode}
       />
     </div>
   );

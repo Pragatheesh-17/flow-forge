@@ -64,6 +64,18 @@ export async function updateNode(
     .eq("id", nodeId);
 }
 
+export async function deleteNode(nodeId: string) {
+  const supabase = await createSupabaseServerClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("Unauthorized");
+
+  await supabase.from("workflow_nodes").delete().eq("id", nodeId);
+}
+
 export async function reorderNodes(
   updates: { id: string; position: number; pos_x: number; pos_y: number }[]
 ) {
@@ -85,6 +97,41 @@ export async function reorderNodes(
           pos_y: update.pos_y,
         })
         .eq("id", update.id)
-    )
+      )
   );
+}
+
+export async function addEdge(workflowId: string, source: string, target: string) {
+  const supabase = await createSupabaseServerClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("Unauthorized");
+
+  const { data, error } = await supabase
+    .from("workflow_edges")
+    .insert({
+      workflow_id: workflowId,
+      source_node_id: source,
+      target_node_id: target,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteEdge(edgeId: string) {
+  const supabase = await createSupabaseServerClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("Unauthorized");
+
+  await supabase.from("workflow_edges").delete().eq("id", edgeId);
 }
