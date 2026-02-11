@@ -94,6 +94,20 @@ export default function NodeConfigPanel({
         style={{ width: "100%", marginBottom: 12 }}
       />
 
+      {type === "GMAIL" && (
+        <div style={{ marginBottom: 12 }}>
+          <label>Gmail Connection</label>
+          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+            <button onClick={() => (window.location.href = "/api/gmail/authorize")}>
+              Connect Gmail
+            </button>
+          </div>
+          <div style={{ fontSize: 12, color: "#bbb", marginTop: 6 }}>
+            This opens Google OAuth. Complete the consent flow, then return here.
+          </div>
+        </div>
+      )}
+
       <h4 style={{ marginTop: 16 }}>Upstream Outputs</h4>
       {upstreamOutputs.length === 0 ? (
         <div style={{ fontSize: 12, color: "#bbb", marginBottom: 12 }}>

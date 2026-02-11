@@ -4,6 +4,7 @@ import { resolveTemplate } from "./template";
 import { executeRAG } from "./rag";
 import { executeAI } from "./ai";
 import { executeHttp } from "./http";
+import { executeGmail } from "./gmail";
 
 
 export async function executeWorkflow({
@@ -165,6 +166,10 @@ export async function executeWorkflow({
         
         case "RAG_QA":
           nodeOutput = await executeRAG(node.config, nodeInput, userId);
+          break;
+
+        case "GMAIL":
+          nodeOutput = await executeGmail(node.config, nodeInput, userId);
           break;
 
 
