@@ -32,7 +32,9 @@ export async function GET(req: Request) {
 
   const cookieStore = await cookies();
   const expectedState = cookieStore.get("gmail_oauth_state")?.value;
+  const returnTo = cookieStore.get("gmail_oauth_return_to")?.value;
   cookieStore.delete("gmail_oauth_state");
+  cookieStore.delete("gmail_oauth_return_to");
 
   if (!code || !state || !expectedState || state !== expectedState) {
     return NextResponse.json({ error: "Invalid OAuth state." }, { status: 400 });
@@ -91,5 +93,6 @@ export async function GET(req: Request) {
     );
   }
 
-  return NextResponse.redirect(new URL("/workflows", getBaseUrl()));
+  const safeReturnTo = returnTo && returnTo.startsWith("/") ? returnTo : "/workflows";
+  return NextResponse.redirect(new URL(safeReturnTo, getBaseUrl()));
 }

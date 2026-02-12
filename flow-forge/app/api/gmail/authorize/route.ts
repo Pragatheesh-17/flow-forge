@@ -16,7 +16,7 @@ function getEnv(name: string) {
   return value;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase.auth.getUser();
   const user = data.user;
@@ -24,6 +24,8 @@ export async function GET() {
   if (!user) {
     return NextResponse.redirect(new URL("/login", getBaseUrl()));
   }
+
+  const returnTo = new URL(req.url).searchParams.get("returnTo");
 
   const clientId = getEnv("GOOGLE_CLIENT_ID");
   const redirectUri = `${getBaseUrl()}/api/gmail/callback`;
@@ -36,6 +38,14 @@ export async function GET() {
     secure: process.env.NODE_ENV === "production",
     path: "/",
   });
+  if (returnTo && returnTo.startsWith("/")) {
+    cookieStore.set("gmail_oauth_return_to", returnTo, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+    });
+  }
 
   const scopes = [
     "https://www.googleapis.com/auth/gmail.readonly",
