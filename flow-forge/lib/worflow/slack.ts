@@ -18,6 +18,12 @@ type SlackSendConfig = {
   text?: string;
 };
 
+type SlackWorkflowInput = {
+  source?: string;
+  team_id?: string | null;
+  channel?: string | null;
+};
+
 function getEnv(name: string) {
   const value = process.env[name];
   if (!value) {
@@ -75,10 +81,19 @@ async function slackRequest(
   return json;
 }
 
-export async function executeSlackSend(config: SlackSendConfig, nodeInput: any, userId: string) {
+export async function executeSlackSend(
+  config: SlackSendConfig,
+  nodeInput: any,
+  userId: string,
+  workflowInput?: SlackWorkflowInput
+) {
   const resolved = resolveTemplate(config, { input: nodeInput });
-  const teamId = resolved.team_id;
-  const channel = resolved.channel;
+  const teamId =
+    resolved.team_id ||
+    (workflowInput?.source === "slack" ? workflowInput.team_id || undefined : undefined);
+  const channel =
+    resolved.channel ||
+    (workflowInput?.source === "slack" ? workflowInput.channel || undefined : undefined);
   const text = resolved.text;
 
   if (!teamId) throw new Error("Slack SEND requires 'team_id' in config.");
@@ -99,4 +114,3 @@ export async function executeSlackSend(config: SlackSendConfig, nodeInput: any, 
     ok: true,
   };
 }
-

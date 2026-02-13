@@ -193,7 +193,7 @@ export async function executeWorkflow({
         }
 
         case "SLACK":
-          nodeOutput = await executeSlackSend(node.config, nodeInput, userId);
+          nodeOutput = await executeSlackSend(node.config, nodeInput, userId, input);
           break;
 
         case "CONDITIONAL": {

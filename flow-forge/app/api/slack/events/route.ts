@@ -76,12 +76,17 @@ export async function POST(req: Request) {
 
   const matchingNodes = nodes.filter((node: any) => {
     const cfg = node.config || {};
+
+    // If team_id is configured, it must match. If empty, allow any team.
     if (cfg.team_id && cfg.team_id !== teamId) return false;
+
     if (cfg.channel && event.channel && cfg.channel !== event.channel) return false;
-    if (Array.isArray(cfg.event_types) && cfg.event_types.length > 0) {
-      return cfg.event_types.includes(event.type);
-    }
-    return true;
+
+    const configuredTypes = Array.isArray(cfg.event_types) && cfg.event_types.length > 0
+      ? cfg.event_types
+      : ["message", "app_mention"];
+
+    return configuredTypes.includes(event.type);
   });
 
   if (matchingNodes.length === 0) {
@@ -113,6 +118,20 @@ export async function POST(req: Request) {
     workflowIds.map(async (workflowId) => {
       const wf = workflowById.get(workflowId);
       if (!wf) return;
+
+      const { count } = await supabaseAdmin
+        .from("workflow_runs")
+        .select("id", { count: "exact", head: true })
+        .eq("workflow_id", workflowId)
+        .contains("input", {
+          source: "slack",
+          event_id: payload.event_id,
+        });
+
+      if ((count || 0) > 0) {
+        return;
+      }
+
       await executeWorkflow({
         workflowId,
         userId: wf.user_id,

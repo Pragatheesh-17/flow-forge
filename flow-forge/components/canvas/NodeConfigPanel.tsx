@@ -25,6 +25,7 @@ export default function NodeConfigPanel({
   const [config, setConfig] = useState<string>("{}");
   const [saving, setSaving] = useState(false);
   const [gmailConnected, setGmailConnected] = useState<boolean | null>(null);
+  const [slackConnected, setSlackConnected] = useState<boolean | null>(null);
   const [gmailAction, setGmailAction] = useState<"READ" | "SEND">("READ");
   const [gmailReadQuery, setGmailReadQuery] = useState("in:inbox is:unread");
   const [gmailReadMaxResults, setGmailReadMaxResults] = useState<number>(5);
@@ -145,12 +146,14 @@ export default function NodeConfigPanel({
   useEffect(() => {
     if (type !== "SLACK" && type !== "SLACK_TRIGGER") return;
     let cancelled = false;
+    setSlackConnected(null);
     fetch("/api/slack/connections")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (cancelled) return;
         const list = Array.isArray(data?.connections) ? data.connections : [];
         setSlackConnections(list);
+        setSlackConnected(list.length > 0);
         if (type === "SLACK" && !slackTeamId && list.length > 0) {
           setSlackTeamId(list[0].team_id);
         }
@@ -161,6 +164,7 @@ export default function NodeConfigPanel({
       .catch(() => {
         if (cancelled) return;
         setSlackConnections([]);
+        setSlackConnected(false);
       });
     return () => {
       cancelled = true;
@@ -382,6 +386,14 @@ export default function NodeConfigPanel({
 
       {type === "SLACK" && (
         <div style={{ marginBottom: 12 }}>
+          <label>Slack Connection</label>
+          <div style={{ fontSize: 12, color: "#bbb", marginTop: 6, marginBottom: 8 }}>
+            {slackConnected === null
+              ? "Checking..."
+              : slackConnected
+              ? "Connected"
+              : "Not connected"}
+          </div>
           <label>Slack Workspace</label>
           <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
             <select
@@ -427,6 +439,14 @@ export default function NodeConfigPanel({
 
       {type === "SLACK_TRIGGER" && (
         <div style={{ marginBottom: 12 }}>
+          <label>Slack Connection</label>
+          <div style={{ fontSize: 12, color: "#bbb", marginTop: 6, marginBottom: 8 }}>
+            {slackConnected === null
+              ? "Checking..."
+              : slackConnected
+              ? "Connected"
+              : "Not connected"}
+          </div>
           <label>Slack Workspace</label>
           <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
             <select
