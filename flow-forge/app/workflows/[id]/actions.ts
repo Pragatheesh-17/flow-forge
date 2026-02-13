@@ -101,7 +101,13 @@ export async function reorderNodes(
   );
 }
 
-export async function addEdge(workflowId: string, source: string, target: string) {
+export async function addEdge(
+  workflowId: string,
+  source: string,
+  target: string,
+  sourceHandle?: string | null,
+  targetHandle?: string | null
+) {
   const supabase = await createSupabaseServerClient();
 
   const {
@@ -116,6 +122,8 @@ export async function addEdge(workflowId: string, source: string, target: string
       workflow_id: workflowId,
       source_node_id: source,
       target_node_id: target,
+      source_handle: sourceHandle ?? null,
+      target_handle: targetHandle ?? null,
     })
     .select()
     .single();

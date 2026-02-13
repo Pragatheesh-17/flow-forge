@@ -5,7 +5,22 @@ import { executeRAG } from "./rag";
 import { executeAI } from "./ai";
 import { executeHttp } from "./http";
 import { executeGmail } from "./gmail";
+import { executeSlackSend } from "./slack";
+import { evaluateConditional, validateConditionalConfig } from "./conditional";
 
+type WorkflowNode = {
+  id: string;
+  type: string;
+  config: any;
+};
+
+type WorkflowEdge = {
+  id: string;
+  source_node_id: string;
+  target_node_id: string;
+  source_handle?: string | null;
+  target_handle?: string | null;
+};
 
 export async function executeWorkflow({
   workflowId,
@@ -18,7 +33,6 @@ export async function executeWorkflow({
 }) {
   const supabase = await createSupabaseServerClient();
 
-  // Create workflow run (using admin client to bypass RLS)
   const { data: run, error: runError } = await supabaseAdmin
     .from("workflow_runs")
     .insert({
@@ -36,8 +50,8 @@ export async function executeWorkflow({
 
   let lastOutput: any = input;
   const context: Record<string, any> = {};
+  const executedNodeIds = new Set<string>();
 
-  // Fetch nodes (using admin client to bypass RLS)
   const { data: nodes } = await supabaseAdmin
     .from("workflow_nodes")
     .select("*")
@@ -49,82 +63,85 @@ export async function executeWorkflow({
     .select("*")
     .eq("workflow_id", workflowId);
 
-  const nodeById = new Map((nodes || []).map((node) => [node.id, node]));
-
-  const normalizedEdges = (edges || []).filter(
+  const normalizedNodes = (nodes || []) as WorkflowNode[];
+  const nodeById = new Map(normalizedNodes.map((node) => [node.id, node]));
+  const normalizedEdges = ((edges || []) as WorkflowEdge[]).filter(
     (edge) => nodeById.has(edge.source_node_id) && nodeById.has(edge.target_node_id)
   );
 
   const useEdges = normalizedEdges.length > 0;
 
-  const incoming = new Map<string, Set<string>>();
-  const outgoing = new Map<string, Set<string>>();
+  const incomingEdges = new Map<string, WorkflowEdge[]>();
+  const outgoingEdges = new Map<string, WorkflowEdge[]>();
   const indegree = new Map<string, number>();
 
-  if (useEdges) {
-    for (const node of nodes || []) {
-      incoming.set(node.id, new Set());
-      outgoing.set(node.id, new Set());
-      indegree.set(node.id, 0);
-    }
+  for (const node of normalizedNodes) {
+    incomingEdges.set(node.id, []);
+    outgoingEdges.set(node.id, []);
+    indegree.set(node.id, 0);
+  }
 
-    for (const edge of normalizedEdges) {
-      if (edge.source_node_id === edge.target_node_id) continue;
-      incoming.get(edge.target_node_id)?.add(edge.source_node_id);
-      outgoing.get(edge.source_node_id)?.add(edge.target_node_id);
-    }
+  for (const edge of normalizedEdges) {
+    if (edge.source_node_id === edge.target_node_id) continue;
+    incomingEdges.get(edge.target_node_id)?.push(edge);
+    outgoingEdges.get(edge.source_node_id)?.push(edge);
+    indegree.set(edge.target_node_id, (indegree.get(edge.target_node_id) ?? 0) + 1);
+  }
 
-    for (const [nodeId, sources] of incoming.entries()) {
-      indegree.set(nodeId, sources.size);
+  const queue: WorkflowNode[] = [];
+  for (const node of normalizedNodes) {
+    if ((indegree.get(node.id) ?? 0) === 0) {
+      queue.push(node);
+    }
+  }
+
+  const executionOrder: WorkflowNode[] = [];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) break;
+    executionOrder.push(current);
+    for (const edge of outgoingEdges.get(current.id) || []) {
+      const next = (indegree.get(edge.target_node_id) ?? 0) - 1;
+      indegree.set(edge.target_node_id, next);
+      if (next === 0) {
+        const nextNode = nodeById.get(edge.target_node_id);
+        if (nextNode) queue.push(nextNode);
+      }
     }
   }
 
   try {
-    let executionOrder: any[] = nodes || [];
-
-    if (useEdges) {
-      const queue: any[] = [];
-      for (const node of nodes || []) {
-        if ((indegree.get(node.id) ?? 0) === 0) {
-          queue.push(node);
-        }
-      }
-
-      const ordered: any[] = [];
-      while (queue.length > 0) {
-        const current = queue.shift();
-        if (!current) break;
-        ordered.push(current);
-        for (const targetId of outgoing.get(current.id) || []) {
-          const next = (indegree.get(targetId) ?? 0) - 1;
-          indegree.set(targetId, next);
-          if (next === 0) {
-            const nextNode = nodeById.get(targetId);
-            if (nextNode) queue.push(nextNode);
-          }
-        }
-      }
-
-      if (ordered.length !== (nodes || []).length) {
-        throw new Error("Workflow graph has a cycle or disconnected edges.");
-      }
-
-      executionOrder = ordered;
+    if (useEdges && executionOrder.length !== normalizedNodes.length) {
+      throw new Error("Workflow graph has a cycle or disconnected edges.");
     }
 
-    for (const node of executionOrder) {
+    const orderedNodes = useEdges ? executionOrder : normalizedNodes;
+    const prunedEdgeIds = new Set<string>();
+
+    for (const node of orderedNodes) {
       let nodeInput: any;
+
       if (useEdges) {
-        const sources = incoming.get(node.id);
-        if (!sources || sources.size === 0) {
+        const incoming = (incomingEdges.get(node.id) || []).filter(
+          (edge) =>
+            !prunedEdgeIds.has(edge.id) &&
+            executedNodeIds.has(edge.source_node_id) &&
+            edge.source_node_id !== edge.target_node_id
+        );
+
+        const isRoot = (incomingEdges.get(node.id)?.length ?? 0) === 0;
+        if (!isRoot && incoming.length === 0) {
+          continue;
+        }
+
+        if (isRoot) {
           nodeInput = input;
-        } else if (sources.size === 1) {
-          const sourceId = Array.from(sources)[0];
-          nodeInput = context[sourceId];
+        } else if (incoming.length === 1) {
+          nodeInput = context[incoming[0].source_node_id];
         } else {
           const bundled: Record<string, any> = {};
-          for (const sourceId of sources) {
-            bundled[sourceId] = context[sourceId];
+          for (const edge of incoming) {
+            bundled[edge.source_node_id] = context[edge.source_node_id];
           }
           nodeInput = bundled;
         }
@@ -132,7 +149,6 @@ export async function executeWorkflow({
         nodeInput = lastOutput;
       }
 
-      // Create node run (using admin client to bypass RLS)
       const { data: nodeRun, error: nodeRunError } = await supabaseAdmin
         .from("node_runs")
         .insert({
@@ -148,10 +164,11 @@ export async function executeWorkflow({
         throw new Error(`Failed to create node run: ${nodeRunError?.message}`);
       }
 
-      let nodeOutput;
+      let nodeOutput: any;
 
       switch (node.type) {
         case "TRIGGER":
+        case "SLACK_TRIGGER":
           nodeOutput = nodeInput;
           break;
 
@@ -159,25 +176,60 @@ export async function executeWorkflow({
           nodeOutput = await executeAI(node.config, nodeInput);
           break;
 
-        case "HTTP_REQUEST":
+        case "HTTP_REQUEST": {
           const resolvedConfig = resolveTemplate(node.config, { input: nodeInput });
           nodeOutput = await executeHttp(resolvedConfig, nodeInput);
           break;
-        
+        }
+
         case "RAG_QA":
           nodeOutput = await executeRAG(node.config, nodeInput, userId);
           break;
 
-        case "GMAIL":
-          nodeOutput = await executeGmail(node.config, nodeInput, userId);
+        case "GMAIL": {
+          const resolvedConfig = resolveTemplate(node.config, { input: nodeInput });
+          nodeOutput = await executeGmail(resolvedConfig, nodeInput, userId);
+          break;
+        }
+
+        case "SLACK":
+          nodeOutput = await executeSlackSend(node.config, nodeInput, userId);
           break;
 
+        case "CONDITIONAL": {
+          validateConditionalConfig(node.config);
+          const evaluation = evaluateConditional(node.config, nodeInput);
+          const selectedBranch = evaluation.result ? "true" : "false";
+          const conditionalOutgoing = outgoingEdges.get(node.id) || [];
+
+          for (const edge of conditionalOutgoing) {
+            if (edge.source_handle !== "true" && edge.source_handle !== "false") {
+              throw new Error(
+                `Conditional node ${node.id} has edge ${edge.id} without a valid source_handle (true/false).`
+              );
+            }
+            if (edge.source_handle !== selectedBranch) {
+              prunedEdgeIds.add(edge.id);
+            }
+          }
+
+          nodeOutput = {
+            branch: selectedBranch,
+            condition: {
+              left: evaluation.left,
+              operator: node.config.operator,
+              right: evaluation.right,
+              result: evaluation.result,
+            },
+            passthrough: nodeInput,
+          };
+          break;
+        }
 
         default:
           throw new Error(`Unsupported node type: ${node.type}`);
       }
 
-      // Save node output (using admin client to bypass RLS)
       await supabaseAdmin
         .from("node_runs")
         .update({
@@ -186,15 +238,22 @@ export async function executeWorkflow({
         })
         .eq("id", nodeRun.id);
 
-      context[node.id] = nodeOutput;
-      lastOutput = nodeOutput;
+      context[node.id] = node.type === "CONDITIONAL" ? nodeOutput.passthrough : nodeOutput;
+      lastOutput = context[node.id];
+      executedNodeIds.add(node.id);
     }
 
     let workflowOutput: any = lastOutput;
     if (useEdges) {
-      const terminalIds = (nodes || [])
+      const terminalIds = normalizedNodes
         .map((node) => node.id)
-        .filter((nodeId) => (outgoing.get(nodeId)?.size ?? 0) === 0);
+        .filter((nodeId) => {
+          const activeOutgoing = (outgoingEdges.get(nodeId) || []).filter(
+            (edge) => !prunedEdgeIds.has(edge.id)
+          );
+          return activeOutgoing.length === 0;
+        })
+        .filter((nodeId) => executedNodeIds.has(nodeId));
 
       if (terminalIds.length === 1) {
         workflowOutput = context[terminalIds[0]];
@@ -206,7 +265,6 @@ export async function executeWorkflow({
       }
     }
 
-    // Mark workflow success (using admin client to bypass RLS)
     await supabaseAdmin
       .from("workflow_runs")
       .update({
@@ -228,3 +286,4 @@ export async function executeWorkflow({
     throw err;
   }
 }
+

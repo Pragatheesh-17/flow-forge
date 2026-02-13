@@ -15,6 +15,8 @@ type DbEdge = {
   id: string;
   source_node_id: string;
   target_node_id: string;
+  source_handle?: string | null;
+  target_handle?: string | null;
 };
 
 type NodeRun = {
@@ -40,7 +42,12 @@ export default function WorkflowEditorClient({
   initialNodeRuns: NodeRun[];
   latestRunAt: string | null;
   addNodeAction: (formData: FormData) => Promise<DbNode>;
-  addEdgeAction: (source: string, target: string) => Promise<DbEdge>;
+  addEdgeAction: (
+    source: string,
+    target: string,
+    sourceHandle?: string | null,
+    targetHandle?: string | null
+  ) => Promise<DbEdge>;
   deleteNodeAction: (nodeId: string) => Promise<void>;
   deleteEdgeAction: (edgeId: string) => Promise<void>;
 }) {

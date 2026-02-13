@@ -29,6 +29,8 @@ type DbEdge = {
   id: string;
   source_node_id: string;
   target_node_id: string;
+  source_handle?: string | null;
+  target_handle?: string | null;
 };
 
 type NodeRun = {
@@ -55,7 +57,12 @@ export default function FlowCanvas({
   edges: DbEdge[];
   nodeRuns: NodeRun[];
   latestRunAt: string | null;
-  addEdgeAction: (source: string, target: string) => Promise<DbEdge>;
+  addEdgeAction: (
+    source: string,
+    target: string,
+    sourceHandle?: string | null,
+    targetHandle?: string | null
+  ) => Promise<DbEdge>;
   deleteNodeAction: (nodeId: string) => Promise<void>;
   deleteEdgeAction: (edgeId: string) => Promise<void>;
   onEdgeAdded?: (edge: DbEdge) => void;
@@ -152,6 +159,14 @@ export default function FlowCanvas({
           id: edge.id,
           source: edge.source_node_id,
           target: edge.target_node_id,
+          sourceHandle: edge.source_handle ?? undefined,
+          targetHandle: edge.target_handle ?? undefined,
+          label:
+            edge.source_handle === "true"
+              ? "TRUE"
+              : edge.source_handle === "false"
+              ? "FALSE"
+              : undefined,
           animated: true,
         }))
     );
@@ -274,7 +289,9 @@ export default function FlowCanvas({
           if (!connection.source || !connection.target) return;
           const created = await addEdgeAction(
             connection.source,
-            connection.target
+            connection.target,
+            connection.sourceHandle ?? null,
+            connection.targetHandle ?? null
           );
           onEdgeAdded?.(created);
           setEdges((prev) =>
@@ -283,6 +300,14 @@ export default function FlowCanvas({
                 id: created.id,
                 source: created.source_node_id,
                 target: created.target_node_id,
+                sourceHandle: created.source_handle ?? undefined,
+                targetHandle: created.target_handle ?? undefined,
+                label:
+                  created.source_handle === "true"
+                    ? "TRUE"
+                    : created.source_handle === "false"
+                    ? "FALSE"
+                    : undefined,
                 animated: true,
               },
               prev

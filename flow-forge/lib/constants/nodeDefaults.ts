@@ -29,6 +29,25 @@ export function getDefaultNodeConfig(type: NodeType) {
         subject: "{{input.subject}}",
         body: "{{input.body}}",
       };
+    case "SLACK":
+      return {
+        action: "SEND",
+        team_id: "",
+        channel: "",
+        text: "Hello from FlowForge",
+      };
+    case "SLACK_TRIGGER":
+      return {
+        team_id: "",
+        event_types: ["message", "app_mention"],
+        channel: "",
+      };
+    case "CONDITIONAL":
+      return {
+        left_value: "$.status",
+        operator: "equals",
+        right_value: "ok",
+      };
     case "TRIGGER":
     default:
       return {};
