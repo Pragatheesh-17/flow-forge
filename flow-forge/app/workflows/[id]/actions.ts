@@ -1,8 +1,10 @@
 "use server";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { NODE_TYPES } from "@/lib/constants/nodeTypes";
 import { getDefaultNodeConfig } from "@/lib/constants/nodeDefaults";
+import { nextRunAt, validateSchedule } from "@/lib/worflow/schedule";
 
 export async function addNode(workflowId: string, formData: FormData) {
   const rawType = String(formData.get("type") || "TRIGGER");
@@ -142,4 +144,55 @@ export async function deleteEdge(edgeId: string) {
   if (!user) throw new Error("Unauthorized");
 
   await supabase.from("workflow_edges").delete().eq("id", edgeId);
+}
+
+export async function saveWorkflowSchedule(
+  workflowId: string,
+  schedule: {
+    enabled: boolean;
+    cron_expression: string;
+    timezone: string;
+  }
+) {
+  const supabase = await createSupabaseServerClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("Unauthorized");
+
+  const { data: workflow } = await supabase
+    .from("workflows")
+    .select("id")
+    .eq("id", workflowId)
+    .eq("user_id", user.id)
+    .single();
+
+  if (!workflow) throw new Error("Workflow not found");
+
+  const cronExpression = schedule.cron_expression.trim();
+  const timezone = schedule.timezone.trim();
+  validateSchedule(cronExpression, timezone);
+
+  const nextRun = schedule.enabled ? nextRunAt(cronExpression, timezone, new Date()) : null;
+
+  const { data, error } = await supabaseAdmin
+    .from("workflow_schedules")
+    .upsert(
+      {
+        workflow_id: workflowId,
+        enabled: schedule.enabled,
+        cron_expression: cronExpression,
+        timezone,
+        next_run_at: nextRun,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "workflow_id" }
+    )
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data;
 }

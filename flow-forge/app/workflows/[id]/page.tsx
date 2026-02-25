@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { runWorkflow } from "./run/actions";
-import { addEdge, addNode, deleteEdge, deleteNode } from "./actions";
+import { addEdge, addNode, deleteEdge, deleteNode, saveWorkflowSchedule } from "./actions";
 import WorkflowEditorClient from "@/components/workflows/WorkflowEditorClient";
 
 export default async function WorkflowEditor({
@@ -40,6 +41,12 @@ export default async function WorkflowEditor({
     .select("*")
     .eq("workflow_id", id);
 
+  const { data: schedule } = await supabaseAdmin
+    .from("workflow_schedules")
+    .select("*")
+    .eq("workflow_id", id)
+    .maybeSingle();
+
   const { data: latestRun } = await supabase
     .from("workflow_runs")
     .select("id, created_at")
@@ -56,6 +63,7 @@ export default async function WorkflowEditor({
     : { data: [] };
   const addNodeAction = addNode.bind(null, id);
   const addEdgeAction = addEdge.bind(null, id);
+  const saveScheduleAction = saveWorkflowSchedule.bind(null, id);
 
   return (
     <div style={{ padding: 24 }}>
@@ -76,10 +84,12 @@ export default async function WorkflowEditor({
       <WorkflowEditorClient
         initialNodes={nodes ?? []}
         initialEdges={edges ?? []}
+        initialSchedule={schedule ?? null}
         initialNodeRuns={nodeRuns ?? []}
         latestRunAt={latestRun?.created_at ?? null}
         addNodeAction={addNodeAction}
         addEdgeAction={addEdgeAction}
+        saveScheduleAction={saveScheduleAction}
         deleteNodeAction={deleteNode}
         deleteEdgeAction={deleteEdge}
       />
