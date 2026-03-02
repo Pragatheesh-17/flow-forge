@@ -7,6 +7,7 @@ import { executeHttp } from "./http";
 import { executeGmail } from "./gmail";
 import { executeSlackSend } from "./slack";
 import { evaluateConditional, validateConditionalConfig } from "./conditional";
+import { RetryConfig, retryDelayMs, validateRetryConfig } from "./retry";
 
 type WorkflowNode = {
   id: string;
@@ -22,6 +23,15 @@ type WorkflowEdge = {
   target_handle?: string | null;
 };
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeError(err: unknown) {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
 export async function executeWorkflow({
   workflowId,
   userId,
@@ -31,7 +41,7 @@ export async function executeWorkflow({
   userId: string;
   input: any;
 }) {
-  const supabase = await createSupabaseServerClient();
+  await createSupabaseServerClient();
 
   const { data: run, error: runError } = await supabaseAdmin
     .from("workflow_runs")
@@ -70,7 +80,6 @@ export async function executeWorkflow({
   );
 
   const useEdges = normalizedEdges.length > 0;
-
   const incomingEdges = new Map<string, WorkflowEdge[]>();
   const outgoingEdges = new Map<string, WorkflowEdge[]>();
   const indegree = new Map<string, number>();
@@ -117,58 +126,19 @@ export async function executeWorkflow({
 
     const orderedNodes = useEdges ? executionOrder : normalizedNodes;
     const prunedEdgeIds = new Set<string>();
+    let pendingSequentialRetry: RetryConfig | null = null;
 
-    for (const node of orderedNodes) {
-      let nodeInput: any;
-
-      if (useEdges) {
-        const incoming = (incomingEdges.get(node.id) || []).filter(
-          (edge) =>
-            !prunedEdgeIds.has(edge.id) &&
-            executedNodeIds.has(edge.source_node_id) &&
-            edge.source_node_id !== edge.target_node_id
-        );
-
-        const isRoot = (incomingEdges.get(node.id)?.length ?? 0) === 0;
-        if (!isRoot && incoming.length === 0) {
-          continue;
-        }
-
-        if (isRoot) {
-          nodeInput = input;
-        } else if (incoming.length === 1) {
-          nodeInput = context[incoming[0].source_node_id];
-        } else {
-          const bundled: Record<string, any> = {};
-          for (const edge of incoming) {
-            bundled[edge.source_node_id] = context[edge.source_node_id];
-          }
-          nodeInput = bundled;
-        }
-      } else {
-        nodeInput = lastOutput;
-      }
-
-      const { data: nodeRun, error: nodeRunError } = await supabaseAdmin
-        .from("node_runs")
-        .insert({
-          workflow_run_id: run.id,
-          node_id: node.id,
-          input: nodeInput,
-          status: "RUNNING",
-        })
-        .select()
-        .single();
-
-      if (nodeRunError || !nodeRun) {
-        throw new Error(`Failed to create node run: ${nodeRunError?.message}`);
-      }
-
+    const executeNodeCore = async (node: WorkflowNode, nodeInput: any) => {
       let nodeOutput: any;
 
       switch (node.type) {
         case "TRIGGER":
         case "SLACK_TRIGGER":
+          nodeOutput = nodeInput;
+          break;
+
+        case "RETRY":
+          validateRetryConfig(node.config);
           nodeOutput = nodeInput;
           break;
 
@@ -230,13 +200,157 @@ export async function executeWorkflow({
           throw new Error(`Unsupported node type: ${node.type}`);
       }
 
-      await supabaseAdmin
-        .from("node_runs")
-        .update({
-          output: nodeOutput,
-          status: "SUCCESS",
-        })
-        .eq("id", nodeRun.id);
+      return nodeOutput;
+    };
+
+    const executeNodeWithRetry = async (
+      node: WorkflowNode,
+      nodeInput: any,
+      retryConfig: RetryConfig | null
+    ) => {
+      const maxRetries = retryConfig?.max_retries ?? 0;
+      const maxAttempts = maxRetries + 1;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const runInput =
+          attempt === 1
+            ? nodeInput
+            : {
+                payload: nodeInput,
+                retry: {
+                  attempt,
+                  max_attempts: maxAttempts,
+                  strategy: retryConfig?.strategy ?? "fixed",
+                  delay_ms: retryConfig?.delay_ms ?? 0,
+                },
+              };
+
+        const { data: nodeRun, error: nodeRunError } = await supabaseAdmin
+          .from("node_runs")
+          .insert({
+            workflow_run_id: run.id,
+            node_id: node.id,
+            input: runInput,
+            status: "RUNNING",
+          })
+          .select()
+          .single();
+
+        if (nodeRunError || !nodeRun) {
+          throw new Error(`Failed to create node run: ${nodeRunError?.message}`);
+        }
+
+        try {
+          const nodeOutput = await executeNodeCore(node, nodeInput);
+          await supabaseAdmin
+            .from("node_runs")
+            .update({
+              output: nodeOutput,
+              status: "SUCCESS",
+            })
+            .eq("id", nodeRun.id);
+          return nodeOutput;
+        } catch (err) {
+          const message = normalizeError(err);
+          await supabaseAdmin
+            .from("node_runs")
+            .update({
+              output: {
+                error: message,
+                retry: {
+                  attempt,
+                  max_attempts: maxAttempts,
+                  will_retry: attempt < maxAttempts,
+                },
+              },
+              status: "FAILED",
+            })
+            .eq("id", nodeRun.id);
+
+          if (attempt >= maxAttempts) {
+            throw err;
+          }
+
+          const waitMs = retryDelayMs(
+            retryConfig?.delay_ms ?? 0,
+            retryConfig?.strategy ?? "fixed",
+            attempt
+          );
+          if (waitMs > 0) {
+            await sleep(waitMs);
+          }
+        }
+      }
+
+      throw new Error("Unexpected retry flow termination.");
+    };
+
+    for (const node of orderedNodes) {
+      let nodeInput: any;
+      let activeIncomingEdges: WorkflowEdge[] = [];
+
+      if (useEdges) {
+        activeIncomingEdges = (incomingEdges.get(node.id) || []).filter(
+          (edge) =>
+            !prunedEdgeIds.has(edge.id) &&
+            executedNodeIds.has(edge.source_node_id) &&
+            edge.source_node_id !== edge.target_node_id
+        );
+
+        const isRoot = (incomingEdges.get(node.id)?.length ?? 0) === 0;
+        if (!isRoot && activeIncomingEdges.length === 0) {
+          continue;
+        }
+
+        if (isRoot) {
+          nodeInput = input;
+        } else if (activeIncomingEdges.length === 1) {
+          nodeInput = context[activeIncomingEdges[0].source_node_id];
+        } else {
+          const bundled: Record<string, any> = {};
+          for (const edge of activeIncomingEdges) {
+            bundled[edge.source_node_id] = context[edge.source_node_id];
+          }
+          nodeInput = bundled;
+        }
+      } else {
+        nodeInput = lastOutput;
+      }
+
+      let retryConfigForNode: RetryConfig | null = null;
+
+      if (node.type !== "RETRY") {
+        if (useEdges) {
+          const retrySourceEdges = activeIncomingEdges.filter(
+            (edge) => nodeById.get(edge.source_node_id)?.type === "RETRY"
+          );
+
+          if (retrySourceEdges.length > 1) {
+            throw new Error(
+              `Node ${node.id} has multiple RETRY parents. Only one RETRY parent is allowed.`
+            );
+          }
+
+          if (retrySourceEdges.length === 1) {
+            const retryNode = nodeById.get(retrySourceEdges[0].source_node_id);
+            if (!retryNode) {
+              throw new Error(`Retry source node not found for node ${node.id}.`);
+            }
+            validateRetryConfig(retryNode.config);
+            retryConfigForNode = retryNode.config;
+          }
+        } else if (pendingSequentialRetry) {
+          retryConfigForNode = pendingSequentialRetry;
+          pendingSequentialRetry = null;
+        }
+      }
+
+      const nodeOutput = await executeNodeWithRetry(node, nodeInput, retryConfigForNode);
+
+      if (node.type === "RETRY" && !useEdges) {
+        validateRetryConfig(node.config);
+        pendingSequentialRetry = node.config;
+      }
 
       context[node.id] = node.type === "CONDITIONAL" ? nodeOutput.passthrough : nodeOutput;
       lastOutput = context[node.id];
@@ -286,4 +400,3 @@ export async function executeWorkflow({
     throw err;
   }
 }
-

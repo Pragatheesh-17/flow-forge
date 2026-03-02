@@ -6,6 +6,7 @@ import GmailNode from "./GmailNode";
 import SlackNode from "./SlackNode";
 import SlackTriggerNode from "./SlackTriggerNode";
 import ConditionalNode from "./ConditionalNode";
+import RetryNode from "./RetryNode";
 
 export const nodeTypes = {
   TRIGGER: TriggerNode,
@@ -16,4 +17,5 @@ export const nodeTypes = {
   GMAIL: GmailNode,
   SLACK: SlackNode,
   CONDITIONAL: ConditionalNode,
+  RETRY: RetryNode,
 };

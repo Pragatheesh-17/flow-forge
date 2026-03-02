@@ -48,6 +48,12 @@ export function getDefaultNodeConfig(type: NodeType) {
         operator: "equals",
         right_value: "ok",
       };
+    case "RETRY":
+      return {
+        max_retries: 2,
+        delay_ms: 1000,
+        strategy: "fixed",
+      };
     case "TRIGGER":
     default:
       return {};

@@ -7,6 +7,7 @@ export const NODE_TYPES = [
   "GMAIL",
   "SLACK",
   "CONDITIONAL",
+  "RETRY",
 ] as const;
 
 export type NodeType = (typeof NODE_TYPES)[number];

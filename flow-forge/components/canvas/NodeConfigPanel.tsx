@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { NODE_TYPES } from "@/lib/constants/nodeTypes";
 import { CONDITIONAL_OPERATORS, validateConditionalConfig } from "@/lib/worflow/conditional";
+import { RETRY_STRATEGIES, validateRetryConfig } from "@/lib/worflow/retry";
 
 type NodeConfigPanelProps = {
   node: any | null;
@@ -36,6 +37,7 @@ export default function NodeConfigPanel({
   const lastSlackConfigFromForm = useRef<string | null>(null);
   const lastSlackTriggerConfigFromForm = useRef<string | null>(null);
   const lastConditionalConfigFromForm = useRef<string | null>(null);
+  const lastRetryConfigFromForm = useRef<string | null>(null);
   const [slackConnections, setSlackConnections] = useState<
     { team_id: string; team_name: string | null }[]
   >([]);
@@ -50,6 +52,11 @@ export default function NodeConfigPanel({
     CONDITIONAL_OPERATORS[0]
   );
   const [conditionalRightValue, setConditionalRightValue] = useState("ok");
+  const [retryMaxRetries, setRetryMaxRetries] = useState(2);
+  const [retryDelayMs, setRetryDelayMs] = useState(1000);
+  const [retryStrategy, setRetryStrategy] = useState<(typeof RETRY_STRATEGIES)[number]>(
+    "fixed"
+  );
 
   useEffect(() => {
     if (node) {
@@ -119,6 +126,23 @@ export default function NodeConfigPanel({
           : CONDITIONAL_OPERATORS[0]
       );
       setConditionalRightValue(String(parsed.right_value ?? "ok"));
+    } catch {
+      // ignore invalid JSON
+    }
+  }, [type, config]);
+
+  useEffect(() => {
+    if (type !== "RETRY") return;
+    if (lastRetryConfigFromForm.current === config) return;
+    try {
+      const parsed = JSON.parse(config || "{}");
+      setRetryMaxRetries(
+        Number.isInteger(parsed.max_retries) ? parsed.max_retries : 2
+      );
+      setRetryDelayMs(Number.isInteger(parsed.delay_ms) ? parsed.delay_ms : 1000);
+      setRetryStrategy(
+        RETRY_STRATEGIES.includes(parsed.strategy) ? parsed.strategy : "fixed"
+      );
     } catch {
       // ignore invalid JSON
     }
@@ -240,6 +264,18 @@ export default function NodeConfigPanel({
     setConfig(next);
   }, [type, conditionalLeftValue, conditionalOperator, conditionalRightValue]);
 
+  useEffect(() => {
+    if (type !== "RETRY") return;
+    const nextConfig = {
+      max_retries: retryMaxRetries,
+      delay_ms: retryDelayMs,
+      strategy: retryStrategy,
+    };
+    const next = JSON.stringify(nextConfig, null, 2);
+    lastRetryConfigFromForm.current = next;
+    setConfig(next);
+  }, [type, retryMaxRetries, retryDelayMs, retryStrategy]);
+
   if (!node) return null;
 
   const handleSave = async () => {
@@ -248,6 +284,9 @@ export default function NodeConfigPanel({
       const parsedConfig = JSON.parse(config || "{}");
       if (type === "CONDITIONAL") {
         validateConditionalConfig(parsedConfig);
+      }
+      if (type === "RETRY") {
+        validateRetryConfig(parsedConfig);
       }
       await onSave({
         ...node,
@@ -523,6 +562,43 @@ export default function NodeConfigPanel({
             placeholder="ok"
             style={{ width: "100%", marginTop: 6 }}
           />
+        </div>
+      )}
+
+      {type === "RETRY" && (
+        <div style={{ marginBottom: 12 }}>
+          <label>Max Retries</label>
+          <input
+            type="number"
+            min={0}
+            max={10}
+            value={retryMaxRetries}
+            onChange={(e) => setRetryMaxRetries(Number(e.target.value || 0))}
+            style={{ width: "100%", marginTop: 6 }}
+          />
+
+          <label style={{ marginTop: 12, display: "block" }}>Delay (ms)</label>
+          <input
+            type="number"
+            min={0}
+            max={60000}
+            value={retryDelayMs}
+            onChange={(e) => setRetryDelayMs(Number(e.target.value || 0))}
+            style={{ width: "100%", marginTop: 6 }}
+          />
+
+          <label style={{ marginTop: 12, display: "block" }}>Strategy</label>
+          <select
+            value={retryStrategy}
+            onChange={(e) => setRetryStrategy(e.target.value as (typeof RETRY_STRATEGIES)[number])}
+            style={{ width: "100%", marginTop: 6 }}
+          >
+            {RETRY_STRATEGIES.map((strategy) => (
+              <option key={strategy} value={strategy}>
+                {strategy}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 
