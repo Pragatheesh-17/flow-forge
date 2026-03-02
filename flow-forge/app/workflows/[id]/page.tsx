@@ -97,7 +97,13 @@ export default async function WorkflowEditor({
       <form
         action={async (formData) => {
           "use server";
-          const input = formData.get("input");
+          const raw = String(formData.get("input") ?? "");
+          let input: unknown = raw;
+          try {
+            input = JSON.parse(raw);
+          } catch {
+            input = raw;
+          }
           await runWorkflow(workflow.id, input);
         }}
         style={{ marginTop: 16 }}

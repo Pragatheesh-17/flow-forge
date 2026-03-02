@@ -8,6 +8,7 @@ export const NODE_TYPES = [
   "SLACK",
   "CONDITIONAL",
   "RETRY",
+  "JSON_TRANSFORM",
 ] as const;
 
 export type NodeType = (typeof NODE_TYPES)[number];

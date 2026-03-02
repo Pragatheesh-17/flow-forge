@@ -8,6 +8,7 @@ import { executeGmail } from "./gmail";
 import { executeSlackSend } from "./slack";
 import { evaluateConditional, validateConditionalConfig } from "./conditional";
 import { RetryConfig, retryDelayMs, validateRetryConfig } from "./retry";
+import { executeJsonTransform } from "./jsonTransform";
 
 type WorkflowNode = {
   id: string;
@@ -144,6 +145,10 @@ export async function executeWorkflow({
 
         case "AI_TRANSFORM":
           nodeOutput = await executeAI(node.config, nodeInput);
+          break;
+
+        case "JSON_TRANSFORM":
+          nodeOutput = executeJsonTransform(node.config, nodeInput);
           break;
 
         case "HTTP_REQUEST": {

@@ -54,6 +54,13 @@ export function getDefaultNodeConfig(type: NodeType) {
         delay_ms: 1000,
         strategy: "fixed",
       };
+    case "JSON_TRANSFORM":
+      return {
+        mappings: [
+          { from: "input.user", to: "author" },
+          { from: "input.text", to: "message" },
+        ],
+      };
     case "TRIGGER":
     default:
       return {};

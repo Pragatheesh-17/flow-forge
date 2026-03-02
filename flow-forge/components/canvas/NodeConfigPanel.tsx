@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { NODE_TYPES } from "@/lib/constants/nodeTypes";
 import { CONDITIONAL_OPERATORS, validateConditionalConfig } from "@/lib/worflow/conditional";
 import { RETRY_STRATEGIES, validateRetryConfig } from "@/lib/worflow/retry";
+import { validateJsonTransformConfig } from "@/lib/worflow/jsonTransform";
 
 type NodeConfigPanelProps = {
   node: any | null;
@@ -38,6 +39,7 @@ export default function NodeConfigPanel({
   const lastSlackTriggerConfigFromForm = useRef<string | null>(null);
   const lastConditionalConfigFromForm = useRef<string | null>(null);
   const lastRetryConfigFromForm = useRef<string | null>(null);
+  const lastJsonTransformConfigFromForm = useRef<string | null>(null);
   const [slackConnections, setSlackConnections] = useState<
     { team_id: string; team_name: string | null }[]
   >([]);
@@ -57,6 +59,10 @@ export default function NodeConfigPanel({
   const [retryStrategy, setRetryStrategy] = useState<(typeof RETRY_STRATEGIES)[number]>(
     "fixed"
   );
+  const [jsonMappings, setJsonMappings] = useState<{ from: string; to: string }[]>([
+    { from: "input.user", to: "author" },
+    { from: "input.text", to: "message" },
+  ]);
 
   useEffect(() => {
     if (node) {
@@ -143,6 +149,25 @@ export default function NodeConfigPanel({
       setRetryStrategy(
         RETRY_STRATEGIES.includes(parsed.strategy) ? parsed.strategy : "fixed"
       );
+    } catch {
+      // ignore invalid JSON
+    }
+  }, [type, config]);
+
+  useEffect(() => {
+    if (type !== "JSON_TRANSFORM") return;
+    if (lastJsonTransformConfigFromForm.current === config) return;
+    try {
+      const parsed = JSON.parse(config || "{}");
+      if (Array.isArray(parsed.mappings)) {
+        const normalized = parsed.mappings
+          .filter((m: any) => m && typeof m === "object")
+          .map((m: any) => ({
+            from: String(m.from ?? ""),
+            to: String(m.to ?? ""),
+          }));
+        setJsonMappings(normalized.length > 0 ? normalized : [{ from: "", to: "" }]);
+      }
     } catch {
       // ignore invalid JSON
     }
@@ -276,6 +301,19 @@ export default function NodeConfigPanel({
     setConfig(next);
   }, [type, retryMaxRetries, retryDelayMs, retryStrategy]);
 
+  useEffect(() => {
+    if (type !== "JSON_TRANSFORM") return;
+    const nextConfig = {
+      mappings: jsonMappings.map((m) => ({
+        from: m.from.trim(),
+        to: m.to.trim(),
+      })),
+    };
+    const next = JSON.stringify(nextConfig, null, 2);
+    lastJsonTransformConfigFromForm.current = next;
+    setConfig(next);
+  }, [type, jsonMappings]);
+
   if (!node) return null;
 
   const handleSave = async () => {
@@ -287,6 +325,9 @@ export default function NodeConfigPanel({
       }
       if (type === "RETRY") {
         validateRetryConfig(parsedConfig);
+      }
+      if (type === "JSON_TRANSFORM") {
+        validateJsonTransformConfig(parsedConfig);
       }
       await onSave({
         ...node,
@@ -599,6 +640,56 @@ export default function NodeConfigPanel({
               </option>
             ))}
           </select>
+        </div>
+      )}
+
+      {type === "JSON_TRANSFORM" && (
+        <div style={{ marginBottom: 12 }}>
+          <label>Mappings</label>
+          <div style={{ fontSize: 12, color: "#bbb", marginTop: 6, marginBottom: 8 }}>
+            Dot-path mapping from input object to new output object.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {jsonMappings.map((mapping, index) => (
+              <div key={index} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 6 }}>
+                <input
+                  value={mapping.from}
+                  onChange={(e) =>
+                    setJsonMappings((prev) =>
+                      prev.map((item, i) => (i === index ? { ...item, from: e.target.value } : item))
+                    )
+                  }
+                  placeholder="from (e.g. input.user)"
+                />
+                <input
+                  value={mapping.to}
+                  onChange={(e) =>
+                    setJsonMappings((prev) =>
+                      prev.map((item, i) => (i === index ? { ...item, to: e.target.value } : item))
+                    )
+                  }
+                  placeholder="to (e.g. author)"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setJsonMappings((prev) => prev.filter((_, i) => i !== index))
+                  }
+                  disabled={jsonMappings.length <= 1}
+                >
+                  X
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() =>
+                setJsonMappings((prev) => [...prev, { from: "", to: "" }])
+              }
+            >
+              Add Mapping
+            </button>
+          </div>
         </div>
       )}
 
