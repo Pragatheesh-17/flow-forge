@@ -9,6 +9,7 @@ export const NODE_TYPES = [
   "CONDITIONAL",
   "RETRY",
   "JSON_TRANSFORM",
+  "DELAY",
 ] as const;
 
 export type NodeType = (typeof NODE_TYPES)[number];

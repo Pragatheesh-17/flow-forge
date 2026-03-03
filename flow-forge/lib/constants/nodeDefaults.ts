@@ -61,6 +61,10 @@ export function getDefaultNodeConfig(type: NodeType) {
           { from: "input.text", to: "message" },
         ],
       };
+    case "DELAY":
+      return {
+        delay_ms: 60000,
+      };
     case "TRIGGER":
     default:
       return {};

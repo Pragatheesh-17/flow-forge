@@ -8,6 +8,7 @@ import SlackTriggerNode from "./SlackTriggerNode";
 import ConditionalNode from "./ConditionalNode";
 import RetryNode from "./RetryNode";
 import JsonTransformNode from "./JsonTransformNode";
+import DelayNode from "./DelayNode";
 
 export const nodeTypes = {
   TRIGGER: TriggerNode,
@@ -20,4 +21,5 @@ export const nodeTypes = {
   CONDITIONAL: ConditionalNode,
   RETRY: RetryNode,
   JSON_TRANSFORM: JsonTransformNode,
+  DELAY: DelayNode,
 };

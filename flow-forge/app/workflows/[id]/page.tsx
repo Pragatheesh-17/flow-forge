@@ -49,9 +49,18 @@ export default async function WorkflowEditor({
 
   const { data: latestRun } = await supabase
     .from("workflow_runs")
-    .select("id, created_at")
+    .select("id, created_at, status, error")
     .eq("workflow_id", id)
     .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data: nextResume } = await supabaseAdmin
+    .from("workflow_run_delays")
+    .select("workflow_run_id, resume_at, status")
+    .eq("workflow_id", id)
+    .in("status", ["WAITING", "RUNNING"])
+    .order("resume_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 
@@ -78,6 +87,32 @@ export default async function WorkflowEditor({
           {`${process.env.NEXT_PUBLIC_BASE_URL}/api/webhook/${workflow.webhook_id}`}
         </code>
       </p>
+
+      <div style={{ marginBottom: 12, fontSize: 14 }}>
+        <strong>Latest Run:</strong>{" "}
+        <span>{latestRun?.status ?? "N/A"}</span>
+        {latestRun?.error ? (
+          <span style={{ color: "#b91c1c", marginLeft: 8 }}>
+            Error: {latestRun.error}
+          </span>
+        ) : null}
+      </div>
+      {nextResume ? (
+        <div
+          style={{
+            marginBottom: 12,
+            display: "inline-block",
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: "1px solid #666",
+            background: "#111",
+            color: "#eab308",
+            fontSize: 12,
+          }}
+        >
+          PAUSED - resumes at {nextResume.resume_at}
+        </div>
+      ) : null}
 
       {/* Canvas */}
       <h3>Workflow Canvas</h3>

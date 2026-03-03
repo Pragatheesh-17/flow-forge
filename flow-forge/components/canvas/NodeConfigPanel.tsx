@@ -5,6 +5,7 @@ import { NODE_TYPES } from "@/lib/constants/nodeTypes";
 import { CONDITIONAL_OPERATORS, validateConditionalConfig } from "@/lib/worflow/conditional";
 import { RETRY_STRATEGIES, validateRetryConfig } from "@/lib/worflow/retry";
 import { validateJsonTransformConfig } from "@/lib/worflow/jsonTransform";
+import { validateDelayConfig } from "@/lib/worflow/delay";
 
 type NodeConfigPanelProps = {
   node: any | null;
@@ -40,6 +41,7 @@ export default function NodeConfigPanel({
   const lastConditionalConfigFromForm = useRef<string | null>(null);
   const lastRetryConfigFromForm = useRef<string | null>(null);
   const lastJsonTransformConfigFromForm = useRef<string | null>(null);
+  const lastDelayConfigFromForm = useRef<string | null>(null);
   const [slackConnections, setSlackConnections] = useState<
     { team_id: string; team_name: string | null }[]
   >([]);
@@ -63,6 +65,7 @@ export default function NodeConfigPanel({
     { from: "input.user", to: "author" },
     { from: "input.text", to: "message" },
   ]);
+  const [delayMs, setDelayMs] = useState(60000);
 
   useEffect(() => {
     if (node) {
@@ -168,6 +171,17 @@ export default function NodeConfigPanel({
           }));
         setJsonMappings(normalized.length > 0 ? normalized : [{ from: "", to: "" }]);
       }
+    } catch {
+      // ignore invalid JSON
+    }
+  }, [type, config]);
+
+  useEffect(() => {
+    if (type !== "DELAY") return;
+    if (lastDelayConfigFromForm.current === config) return;
+    try {
+      const parsed = JSON.parse(config || "{}");
+      setDelayMs(Number.isInteger(parsed.delay_ms) ? parsed.delay_ms : 60000);
     } catch {
       // ignore invalid JSON
     }
@@ -314,6 +328,16 @@ export default function NodeConfigPanel({
     setConfig(next);
   }, [type, jsonMappings]);
 
+  useEffect(() => {
+    if (type !== "DELAY") return;
+    const nextConfig = {
+      delay_ms: delayMs,
+    };
+    const next = JSON.stringify(nextConfig, null, 2);
+    lastDelayConfigFromForm.current = next;
+    setConfig(next);
+  }, [type, delayMs]);
+
   if (!node) return null;
 
   const handleSave = async () => {
@@ -328,6 +352,9 @@ export default function NodeConfigPanel({
       }
       if (type === "JSON_TRANSFORM") {
         validateJsonTransformConfig(parsedConfig);
+      }
+      if (type === "DELAY") {
+        validateDelayConfig(parsedConfig);
       }
       await onSave({
         ...node,
@@ -689,6 +716,23 @@ export default function NodeConfigPanel({
             >
               Add Mapping
             </button>
+          </div>
+        </div>
+      )}
+
+      {type === "DELAY" && (
+        <div style={{ marginBottom: 12 }}>
+          <label>Delay (ms)</label>
+          <input
+            type="number"
+            min={0}
+            max={86400000}
+            value={delayMs}
+            onChange={(e) => setDelayMs(Number(e.target.value || 0))}
+            style={{ width: "100%", marginTop: 6 }}
+          />
+          <div style={{ fontSize: 12, color: "#bbb", marginTop: 6 }}>
+            Workflow run pauses and resumes via scheduler tick after this delay.
           </div>
         </div>
       )}

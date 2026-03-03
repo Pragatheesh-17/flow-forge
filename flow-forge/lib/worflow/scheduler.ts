@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { executeWorkflow } from "@/lib/worflow/engine";
+import { executeWorkflow, resumeWorkflowRun } from "@/lib/worflow/engine";
 import { nextRunAt } from "@/lib/worflow/schedule";
 
 export type SchedulerTickResult = {
@@ -8,6 +8,9 @@ export type SchedulerTickResult = {
   due_count: number;
   processed: number;
   failed: number;
+  delayed_due_count: number;
+  delayed_resumed: number;
+  delayed_failed: number;
   details: { schedule_id: string; workflow_id: string; status: string; error?: string }[];
 };
 
@@ -29,6 +32,8 @@ export async function runSchedulerTick(nowDate = new Date()): Promise<SchedulerT
 
   let processed = 0;
   let failed = 0;
+  let delayedResumed = 0;
+  let delayedFailed = 0;
   const details: { schedule_id: string; workflow_id: string; status: string; error?: string }[] =
     [];
 
@@ -153,12 +158,61 @@ export async function runSchedulerTick(nowDate = new Date()): Promise<SchedulerT
     }
   }
 
+  const { data: dueDelays, error: delayError } = await supabaseAdmin
+    .from("workflow_run_delays")
+    .select("id, workflow_run_id, workflow_id, user_id, resume_at, state, status")
+    .eq("status", "WAITING")
+    .lte("resume_at", nowIso)
+    .order("resume_at", { ascending: true })
+    .limit(50);
+
+  if (delayError) {
+    throw new Error(`Failed to fetch due delayed runs: ${delayError.message}`);
+  }
+
+  for (const delay of dueDelays || []) {
+    const { data: claimed, error: claimErr } = await supabaseAdmin
+      .from("workflow_run_delays")
+      .update({
+        status: "RUNNING",
+        updated_at: nowIso,
+      })
+      .eq("id", delay.id)
+      .eq("status", "WAITING")
+      .eq("resume_at", delay.resume_at)
+      .select("id, workflow_run_id, workflow_id, user_id, resume_at, state")
+      .maybeSingle();
+
+    if (claimErr || !claimed) {
+      continue;
+    }
+
+    try {
+      await resumeWorkflowRun(claimed as any);
+      delayedResumed += 1;
+    } catch (err) {
+      delayedFailed += 1;
+      const message = err instanceof Error ? err.message : "Delayed workflow resume failed";
+      await supabaseAdmin
+        .from("workflow_run_delays")
+        .update({
+          status: "FAILED",
+          last_error: message,
+          updated_at: nowIso,
+        })
+        .eq("id", claimed.id);
+    }
+  }
+
   return {
     success: true,
     now: nowIso,
     due_count: (dueSchedules || []).length,
     processed,
     failed,
+    delayed_due_count: (dueDelays || []).length,
+    delayed_resumed: delayedResumed,
+    delayed_failed: delayedFailed,
     details,
   };
 }
@@ -175,9 +229,18 @@ function schedulerEnabled() {
   return process.env.NODE_ENV !== "production";
 }
 
+function schedulerPollMs() {
+  const raw = process.env.INTERNAL_SCHEDULER_POLL_MS;
+  if (!raw) return 60_000;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 1_000) return 60_000;
+  return Math.floor(parsed);
+}
+
 export function ensureInternalSchedulerStarted() {
   if (!schedulerEnabled()) return;
   if (global.__flowforgeSchedulerInterval) return;
+  const intervalMs = schedulerPollMs();
 
   const run = async () => {
     try {
@@ -191,5 +254,5 @@ export function ensureInternalSchedulerStarted() {
   void run();
   global.__flowforgeSchedulerInterval = setInterval(() => {
     void run();
-  }, 60_000);
+  }, intervalMs);
 }
