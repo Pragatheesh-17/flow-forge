@@ -54,6 +54,17 @@ function normalizeError(err: unknown) {
   return String(err);
 }
 
+function buildNodeErrorPayload(node: WorkflowNode, nodeInput: any, err: unknown) {
+  return {
+    source: "node_error",
+    failed_node_id: node.id,
+    failed_node_type: node.type,
+    message: normalizeError(err),
+    input: nodeInput,
+    at: new Date().toISOString(),
+  };
+}
+
 async function buildGraph(workflowId: string) {
   const { data: nodes } = await supabaseAdmin
     .from("workflow_nodes")
@@ -449,7 +460,39 @@ async function continueWorkflowRun(params: {
       }
     }
 
-    const nodeOutput = await executeNodeWithRetry(node, nodeInput, retryConfigForNode);
+    let nodeOutput: any;
+    let routedToErrorBranch = false;
+    try {
+      nodeOutput = await executeNodeWithRetry(node, nodeInput, retryConfigForNode);
+    } catch (err) {
+      const hasErrorBranch =
+        state.use_edges &&
+        (graph.outgoingEdges.get(node.id) || []).some((edge) => edge.source_handle === "error");
+
+      if (!hasErrorBranch) {
+        throw err;
+      }
+
+      const outgoing = graph.outgoingEdges.get(node.id) || [];
+      for (const edge of outgoing) {
+        if (edge.source_handle !== "error") {
+          prunedEdgeIds.add(edge.id);
+        }
+      }
+
+      nodeOutput = buildNodeErrorPayload(node, nodeInput, err);
+      routedToErrorBranch = true;
+    }
+
+    // On successful execution, error edges must not execute.
+    if (state.use_edges && !routedToErrorBranch) {
+      const outgoing = graph.outgoingEdges.get(node.id) || [];
+      for (const edge of outgoing) {
+        if (edge.source_handle === "error") {
+          prunedEdgeIds.add(edge.id);
+        }
+      }
+    }
 
     if (node.type === "RETRY" && !state.use_edges) {
       validateRetryConfig(node.config);

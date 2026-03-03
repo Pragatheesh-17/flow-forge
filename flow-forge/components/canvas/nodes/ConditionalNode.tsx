@@ -27,6 +27,12 @@ export default function ConditionalNode() {
         position={Position.Right}
         style={{ top: "70%", background: "#f97316" }}
       />
+      <Handle
+        id="error"
+        type="source"
+        position={Position.Right}
+        style={{ top: "92%", background: "#ef4444" }}
+      />
 
       <div
         style={{
@@ -49,6 +55,17 @@ export default function ConditionalNode() {
         }}
       >
         FALSE
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          right: -36,
+          top: "86%",
+          fontSize: 10,
+          color: "#ef4444",
+        }}
+      >
+        ERROR
       </div>
     </div>
   );
