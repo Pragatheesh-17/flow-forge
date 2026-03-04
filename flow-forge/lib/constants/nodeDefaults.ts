@@ -65,6 +65,10 @@ export function getDefaultNodeConfig(type: NodeType) {
       return {
         delay_ms: 60000,
       };
+    case "LOOP":
+      return {
+        path: "input.items",
+      };
     case "TRIGGER":
     default:
       return {};

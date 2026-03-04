@@ -166,6 +166,10 @@ export default function FlowCanvas({
               ? "TRUE"
               : edge.source_handle === "false"
               ? "FALSE"
+              : edge.source_handle === "item"
+              ? "ITEM"
+              : edge.source_handle === "done"
+              ? "DONE"
               : edge.source_handle === "error"
               ? "ERROR"
               : undefined,
@@ -309,6 +313,10 @@ export default function FlowCanvas({
                     ? "TRUE"
                     : created.source_handle === "false"
                     ? "FALSE"
+                    : created.source_handle === "item"
+                    ? "ITEM"
+                    : created.source_handle === "done"
+                    ? "DONE"
                     : created.source_handle === "error"
                     ? "ERROR"
                     : undefined,

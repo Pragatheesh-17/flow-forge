@@ -6,6 +6,7 @@ import { CONDITIONAL_OPERATORS, validateConditionalConfig } from "@/lib/worflow/
 import { RETRY_STRATEGIES, validateRetryConfig } from "@/lib/worflow/retry";
 import { validateJsonTransformConfig } from "@/lib/worflow/jsonTransform";
 import { validateDelayConfig } from "@/lib/worflow/delay";
+import { validateLoopConfig } from "@/lib/worflow/loop";
 
 type NodeConfigPanelProps = {
   node: any | null;
@@ -42,6 +43,7 @@ export default function NodeConfigPanel({
   const lastRetryConfigFromForm = useRef<string | null>(null);
   const lastJsonTransformConfigFromForm = useRef<string | null>(null);
   const lastDelayConfigFromForm = useRef<string | null>(null);
+  const lastLoopConfigFromForm = useRef<string | null>(null);
   const [slackConnections, setSlackConnections] = useState<
     { team_id: string; team_name: string | null }[]
   >([]);
@@ -66,6 +68,7 @@ export default function NodeConfigPanel({
     { from: "input.text", to: "message" },
   ]);
   const [delayMs, setDelayMs] = useState(60000);
+  const [loopPath, setLoopPath] = useState("input.items");
 
   useEffect(() => {
     if (node) {
@@ -182,6 +185,17 @@ export default function NodeConfigPanel({
     try {
       const parsed = JSON.parse(config || "{}");
       setDelayMs(Number.isInteger(parsed.delay_ms) ? parsed.delay_ms : 60000);
+    } catch {
+      // ignore invalid JSON
+    }
+  }, [type, config]);
+
+  useEffect(() => {
+    if (type !== "LOOP") return;
+    if (lastLoopConfigFromForm.current === config) return;
+    try {
+      const parsed = JSON.parse(config || "{}");
+      setLoopPath(typeof parsed.path === "string" ? parsed.path : "input.items");
     } catch {
       // ignore invalid JSON
     }
@@ -338,6 +352,16 @@ export default function NodeConfigPanel({
     setConfig(next);
   }, [type, delayMs]);
 
+  useEffect(() => {
+    if (type !== "LOOP") return;
+    const nextConfig = {
+      path: loopPath,
+    };
+    const next = JSON.stringify(nextConfig, null, 2);
+    lastLoopConfigFromForm.current = next;
+    setConfig(next);
+  }, [type, loopPath]);
+
   if (!node) return null;
 
   const handleSave = async () => {
@@ -355,6 +379,9 @@ export default function NodeConfigPanel({
       }
       if (type === "DELAY") {
         validateDelayConfig(parsedConfig);
+      }
+      if (type === "LOOP") {
+        validateLoopConfig(parsedConfig);
       }
       await onSave({
         ...node,
@@ -733,6 +760,21 @@ export default function NodeConfigPanel({
           />
           <div style={{ fontSize: 12, color: "#bbb", marginTop: 6 }}>
             Workflow run pauses and resumes via scheduler tick after this delay.
+          </div>
+        </div>
+      )}
+
+      {type === "LOOP" && (
+        <div style={{ marginBottom: 12 }}>
+          <label>Array Path</label>
+          <input
+            value={loopPath}
+            onChange={(e) => setLoopPath(e.target.value)}
+            placeholder="input.items"
+            style={{ width: "100%", marginTop: 6 }}
+          />
+          <div style={{ fontSize: 12, color: "#bbb", marginTop: 6 }}>
+            Dot-path from current node input. Example: input.emails
           </div>
         </div>
       )}

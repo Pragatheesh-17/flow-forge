@@ -10,6 +10,7 @@ import { evaluateConditional, validateConditionalConfig } from "./conditional";
 import { RetryConfig, retryDelayMs, validateRetryConfig } from "./retry";
 import { executeJsonTransform } from "./jsonTransform";
 import { validateDelayConfig } from "./delay";
+import { resolveLoopArray, validateLoopConfig } from "./loop";
 
 type WorkflowNode = {
   id: string;
@@ -44,6 +45,8 @@ type DelayRow = {
   resume_at: string;
   state: ExecutionState;
 };
+
+const LOOP_MAX_ITEMS = 500;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -230,7 +233,11 @@ async function continueWorkflowRun(params: {
   let lastOutput = state.last_output;
   const context: Record<string, any> = state.context || {};
 
-  const executeNodeCore = async (node: WorkflowNode, nodeInput: any) => {
+  const executeNodeCore = async (
+    node: WorkflowNode,
+    nodeInput: any,
+    pruneTarget: Set<string>
+  ) => {
     let nodeOutput: any;
 
     switch (node.type) {
@@ -246,6 +253,11 @@ async function continueWorkflowRun(params: {
 
       case "DELAY":
         validateDelayConfig(node.config);
+        nodeOutput = nodeInput;
+        break;
+
+      case "LOOP":
+        validateLoopConfig(node.config);
         nodeOutput = nodeInput;
         break;
 
@@ -290,7 +302,7 @@ async function continueWorkflowRun(params: {
             );
           }
           if (edge.source_handle !== selectedBranch) {
-            prunedEdgeIds.add(edge.id);
+            pruneTarget.add(edge.id);
           }
         }
 
@@ -317,7 +329,8 @@ async function continueWorkflowRun(params: {
   const executeNodeWithRetry = async (
     node: WorkflowNode,
     nodeInput: any,
-    retryConfig: RetryConfig | null
+    retryConfig: RetryConfig | null,
+    pruneTarget: Set<string>
   ) => {
     const maxRetries = retryConfig?.max_retries ?? 0;
     const maxAttempts = maxRetries + 1;
@@ -351,11 +364,11 @@ async function continueWorkflowRun(params: {
         throw new Error(`Failed to create node run: ${nodeRunError?.message}`);
       }
 
-      try {
-        const nodeOutput = await executeNodeCore(node, nodeInput);
-        await supabaseAdmin
-          .from("node_runs")
-          .update({
+        try {
+          const nodeOutput = await executeNodeCore(node, nodeInput, pruneTarget);
+          await supabaseAdmin
+            .from("node_runs")
+            .update({
             output: nodeOutput,
             status: "SUCCESS",
           })
@@ -463,7 +476,203 @@ async function continueWorkflowRun(params: {
     let nodeOutput: any;
     let routedToErrorBranch = false;
     try {
-      nodeOutput = await executeNodeWithRetry(node, nodeInput, retryConfigForNode);
+      nodeOutput = await executeNodeWithRetry(node, nodeInput, retryConfigForNode, prunedEdgeIds);
+
+      if (node.type === "LOOP") {
+        validateLoopConfig(node.config);
+        const resolved = resolveLoopArray(node.config.path, nodeInput);
+        if (!Array.isArray(resolved)) {
+          throw new Error(`LOOP path '${node.config.path}' did not resolve to an array.`);
+        }
+        if (resolved.length > LOOP_MAX_ITEMS) {
+          throw new Error(`LOOP exceeds max items (${LOOP_MAX_ITEMS}).`);
+        }
+
+        const outgoingFromLoop = graph.outgoingEdges.get(node.id) || [];
+        const itemTargets = outgoingFromLoop
+          .filter((edge) => edge.source_handle === "item")
+          .map((edge) => edge.target_node_id);
+
+        const doneTargets = outgoingFromLoop
+          .filter((edge) => edge.source_handle === "done")
+          .map((edge) => edge.target_node_id);
+
+        const walkReachable = (starts: string[]) => {
+          const reachable = new Set<string>();
+          const queue = [...starts];
+          while (queue.length > 0) {
+            const current = queue.shift();
+            if (!current || reachable.has(current)) continue;
+            reachable.add(current);
+            for (const edge of graph.outgoingEdges.get(current) || []) {
+              if (!reachable.has(edge.target_node_id)) {
+                queue.push(edge.target_node_id);
+              }
+            }
+          }
+          return reachable;
+        };
+
+        const doneReachable = walkReachable(doneTargets);
+        const bodyReachable = walkReachable(itemTargets);
+        bodyReachable.delete(node.id);
+        for (const id of doneReachable) {
+          bodyReachable.delete(id);
+        }
+
+        const orderedBodyNodes = orderedNodeIds.filter((id) => bodyReachable.has(id));
+        for (const bodyNodeId of orderedBodyNodes) {
+          const bodyNode = graph.nodeById.get(bodyNodeId);
+          if (bodyNode?.type === "LOOP") {
+            throw new Error("Nested LOOP nodes are not supported.");
+          }
+        }
+
+        const results: any[] = [];
+
+        for (let loopIndex = 0; loopIndex < resolved.length; loopIndex++) {
+          const item = resolved[loopIndex];
+          const localPruned = new Set<string>();
+          const localExecuted = new Set<string>();
+          const localContext: Record<string, any> = {};
+          let localPendingRetry: RetryConfig | null = null;
+
+          for (const bodyNodeId of orderedBodyNodes) {
+            const bodyNode = graph.nodeById.get(bodyNodeId);
+            if (!bodyNode) continue;
+
+            const incoming = (graph.incomingEdges.get(bodyNode.id) || []).filter(
+              (edge) => !localPruned.has(edge.id)
+            );
+
+            const availableInputs: { sourceId: string; value: any; edge: WorkflowEdge }[] = [];
+            for (const edge of incoming) {
+              if (edge.source_node_id === node.id && edge.source_handle === "item") {
+                availableInputs.push({ sourceId: edge.source_node_id, value: item, edge });
+                continue;
+              }
+              if (bodyReachable.has(edge.source_node_id) && localExecuted.has(edge.source_node_id)) {
+                availableInputs.push({
+                  sourceId: edge.source_node_id,
+                  value: localContext[edge.source_node_id],
+                  edge,
+                });
+                continue;
+              }
+              if (!bodyReachable.has(edge.source_node_id) && executedNodeIds.has(edge.source_node_id)) {
+                availableInputs.push({
+                  sourceId: edge.source_node_id,
+                  value: context[edge.source_node_id],
+                  edge,
+                });
+              }
+            }
+
+            const localIsRoot = incoming.length === 0;
+            if (!localIsRoot && availableInputs.length === 0) {
+              continue;
+            }
+
+            let bodyNodeInput: any;
+            if (localIsRoot) {
+              bodyNodeInput = item;
+            } else if (availableInputs.length === 1) {
+              bodyNodeInput = availableInputs[0].value;
+            } else {
+              const bundled: Record<string, any> = {};
+              for (const entry of availableInputs) {
+                bundled[entry.sourceId] = entry.value;
+              }
+              bodyNodeInput = bundled;
+            }
+
+            let bodyRetry: RetryConfig | null = null;
+            const retrySources = availableInputs.filter(
+              (entry) => graph.nodeById.get(entry.edge.source_node_id)?.type === "RETRY"
+            );
+            if (retrySources.length > 1) {
+              throw new Error(`Loop body node ${bodyNode.id} has multiple RETRY parents.`);
+            }
+            if (retrySources.length === 1) {
+              const retryNode = graph.nodeById.get(retrySources[0].edge.source_node_id);
+              if (!retryNode) throw new Error("Retry source node not found in loop body.");
+              validateRetryConfig(retryNode.config);
+              bodyRetry = retryNode.config;
+            } else if (localPendingRetry) {
+              bodyRetry = localPendingRetry;
+              localPendingRetry = null;
+            }
+
+            let bodyOutput: any;
+            let bodyRoutedError = false;
+            try {
+              bodyOutput = await executeNodeWithRetry(bodyNode, bodyNodeInput, bodyRetry, localPruned);
+            } catch (bodyErr) {
+              const hasBodyError =
+                (graph.outgoingEdges.get(bodyNode.id) || []).some(
+                  (edge) => edge.source_handle === "error" && bodyReachable.has(edge.target_node_id)
+                );
+              if (!hasBodyError) {
+                throw bodyErr;
+              }
+              for (const edge of graph.outgoingEdges.get(bodyNode.id) || []) {
+                if (!bodyReachable.has(edge.target_node_id)) continue;
+                if (edge.source_handle !== "error") localPruned.add(edge.id);
+              }
+              bodyOutput = buildNodeErrorPayload(bodyNode, bodyNodeInput, bodyErr);
+              bodyRoutedError = true;
+            }
+
+            if (!bodyRoutedError) {
+              for (const edge of graph.outgoingEdges.get(bodyNode.id) || []) {
+                if (!bodyReachable.has(edge.target_node_id)) continue;
+                if (edge.source_handle === "error") localPruned.add(edge.id);
+              }
+            }
+
+            if (bodyNode.type === "RETRY") {
+              validateRetryConfig(bodyNode.config);
+              localPendingRetry = bodyNode.config;
+            }
+
+            localContext[bodyNode.id] =
+              bodyNode.type === "CONDITIONAL" ? bodyOutput.passthrough : bodyOutput;
+            localExecuted.add(bodyNode.id);
+          }
+
+          const terminalBody = orderedBodyNodes.filter((bodyNodeId) => {
+            if (!localExecuted.has(bodyNodeId)) return false;
+            const activeOut = (graph.outgoingEdges.get(bodyNodeId) || []).filter(
+              (edge) => bodyReachable.has(edge.target_node_id) && !localPruned.has(edge.id)
+            );
+            return activeOut.length === 0;
+          });
+
+          if (terminalBody.length === 0) {
+            results.push(item);
+          } else if (terminalBody.length === 1) {
+            results.push(localContext[terminalBody[0]]);
+          } else {
+            const merged = terminalBody.reduce((acc, id) => {
+              acc[id] = localContext[id];
+              return acc;
+            }, {} as Record<string, any>);
+            results.push(merged);
+          }
+        }
+
+        // Loop body is executed internally; skip item edges in main traversal.
+        for (const edge of outgoingFromLoop) {
+          if (edge.source_handle === "item") {
+            prunedEdgeIds.add(edge.id);
+          }
+        }
+
+        nodeOutput = {
+          items_processed: resolved.length,
+          results,
+        };
+      }
     } catch (err) {
       const hasErrorBranch =
         state.use_edges &&

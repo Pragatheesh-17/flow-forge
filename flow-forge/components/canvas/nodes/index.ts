@@ -9,6 +9,7 @@ import ConditionalNode from "./ConditionalNode";
 import RetryNode from "./RetryNode";
 import JsonTransformNode from "./JsonTransformNode";
 import DelayNode from "./DelayNode";
+import LoopNode from "./LoopNode";
 
 export const nodeTypes = {
   TRIGGER: TriggerNode,
@@ -22,4 +23,5 @@ export const nodeTypes = {
   RETRY: RetryNode,
   JSON_TRANSFORM: JsonTransformNode,
   DELAY: DelayNode,
+  LOOP: LoopNode,
 };

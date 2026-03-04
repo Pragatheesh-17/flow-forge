@@ -10,6 +10,7 @@ export const NODE_TYPES = [
   "RETRY",
   "JSON_TRANSFORM",
   "DELAY",
+  "LOOP",
 ] as const;
 
 export type NodeType = (typeof NODE_TYPES)[number];
