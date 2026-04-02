@@ -91,6 +91,14 @@ export default async function WorkflowEditor({
       <div style={{ marginBottom: 12, fontSize: 14 }}>
         <strong>Latest Run:</strong>{" "}
         <span>{latestRun?.status ?? "N/A"}</span>
+        {latestRun?.id ? (
+          <a
+            href={`/workflows/${id}/runs/${latestRun.id}`}
+            style={{ marginLeft: 12, color: "#2563eb", textDecoration: "underline" }}
+          >
+            Open Run Inspector
+          </a>
+        ) : null}
         {latestRun?.error ? (
           <span style={{ color: "#b91c1c", marginLeft: 8 }}>
             Error: {latestRun.error}
