@@ -47,12 +47,14 @@ export async function POST(
       output,
     });
   } catch (err: any) {
+    const isLimitError =
+      err?.message?.includes("limit reached") || err?.message?.includes("execution limit");
     return NextResponse.json(
       {
         success: false,
         error: err.message,
       },
-      { status: 500 }
+      { status: isLimitError ? 429 : 500 }
     );
   }
 }

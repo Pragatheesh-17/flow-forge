@@ -132,11 +132,16 @@ export async function POST(req: Request) {
         return;
       }
 
-      await executeWorkflow({
-        workflowId,
-        userId: wf.user_id,
-        input,
-      });
+      try {
+        await executeWorkflow({
+          workflowId,
+          userId: wf.user_id,
+          input,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[slack trigger] workflow ${workflowId} execution skipped: ${message}`);
+      }
     })
   );
 

@@ -11,6 +11,7 @@ import { RetryConfig, retryDelayMs, validateRetryConfig } from "./retry";
 import { executeJsonTransform } from "./jsonTransform";
 import { validateDelayConfig } from "./delay";
 import { resolveLoopArray, validateLoopConfig } from "./loop";
+import { claimWorkflowExecution } from "@/lib/billing/usage";
 
 type WorkflowNode = {
   id: string;
@@ -796,20 +797,11 @@ export async function executeWorkflow({
 }) {
   await createSupabaseServerClient();
 
-  const { data: run, error: runError } = await supabaseAdmin
-    .from("workflow_runs")
-    .insert({
-      workflow_id: workflowId,
-      user_id: userId,
-      input,
-      status: "RUNNING",
-    })
-    .select()
-    .single();
-
-  if (runError || !run) {
-    throw new Error(`Failed to create workflow run: ${runError?.message}`);
-  }
+  const run = await claimWorkflowExecution({
+    workflowId,
+    userId,
+    input,
+  });
 
   try {
     return await continueWorkflowRun({
