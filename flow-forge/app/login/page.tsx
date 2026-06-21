@@ -1,63 +1,99 @@
-"use client";
+import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+type LoginPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
 
-export default function LoginPage() {
-  const supabase = createSupabaseBrowserClient();
-  const router = useRouter();
+function getMode(value: string | string[] | undefined) {
+  return value === "signup" ? "signup" : "login";
+}
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isSignup, setIsSignup] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const resolvedSearchParams = (await searchParams) || {};
+  const mode = getMode(resolvedSearchParams.mode);
+  const errorMessage =
+    typeof resolvedSearchParams.error === "string" ? resolvedSearchParams.error : null;
 
-  const handleAuth = async () => {
-    setError(null);
+  async function handleAuth(formData: FormData) {
+    "use server";
 
-    const { error } = isSignup
-      ? await supabase.auth.signUp({ email, password })
-      : await supabase.auth.signInWithPassword({ email, password });
+    const email = String(formData.get("email") || "").trim();
+    const password = String(formData.get("password") || "");
+    const formMode = getMode(String(formData.get("mode") || "login"));
 
-    if (error) {
-      setError(error.message);
-    } else {
-      router.push("/workflows");
+    if (!email || !password) {
+      redirect(`/login?mode=${formMode}&error=${encodeURIComponent("Email and password are required.")}`);
     }
-  };
+
+    const supabase = await createSupabaseServerClient();
+
+    const result =
+      formMode === "signup"
+        ? await supabase.auth.signUp({ email, password })
+        : await supabase.auth.signInWithPassword({ email, password });
+
+    if (result.error) {
+      redirect(
+        `/login?mode=${formMode}&error=${encodeURIComponent(result.error.message)}`
+      );
+    }
+
+    redirect("/workflows");
+  }
 
   return (
-    <div style={{ maxWidth: 400, margin: "100px auto" }}>
-      <h2>{isSignup ? "Sign Up" : "Login"}</h2>
+    <div style={{ maxWidth: 420, margin: "100px auto", padding: 24 }}>
+      <h2 style={{ marginBottom: 12 }}>{mode === "signup" ? "Sign Up" : "Login"}</h2>
 
-      <input
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
+      {errorMessage ? (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: 12,
+            borderRadius: 8,
+            border: "1px solid #7f1d1d",
+            background: "#1f1111",
+            color: "#fca5a5",
+          }}
+        >
+          {errorMessage}
+        </div>
+      ) : null}
 
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
+      <form action={handleAuth} style={{ display: "grid", gap: 12 }}>
+        <input type="hidden" name="mode" value={mode} />
+        <input
+          name="email"
+          type="email"
+          placeholder="Email"
+          autoComplete="email"
+          style={{ padding: 10, borderRadius: 8, border: "1px solid #ccc" }}
+        />
+        <input
+          name="password"
+          type="password"
+          placeholder="Password"
+          autoComplete={mode === "signup" ? "new-password" : "current-password"}
+          style={{ padding: 10, borderRadius: 8, border: "1px solid #ccc" }}
+        />
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
+        <button type="submit" style={{ padding: 10, borderRadius: 8 }}>
+          {mode === "signup" ? "Create Account" : "Login"}
+        </button>
+      </form>
 
-      <button onClick={handleAuth}>
-        {isSignup ? "Create Account" : "Login"}
-      </button>
-
-      <p
-        style={{ cursor: "pointer", marginTop: 10 }}
-        onClick={() => setIsSignup(!isSignup)}
-      >
-        {isSignup
-          ? "Already have an account? Login"
-          : "New user? Create an account"}
-      </p>
+      <div style={{ marginTop: 12 }}>
+        {mode === "signup" ? (
+          <a href="/login" style={{ textDecoration: "underline" }}>
+            Already have an account? Login
+          </a>
+        ) : (
+          <a href="/login?mode=signup" style={{ textDecoration: "underline" }}>
+            New user? Create an account
+          </a>
+        )}
+      </div>
     </div>
   );
 }
