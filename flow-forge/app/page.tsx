@@ -2,418 +2,748 @@ import Link from "next/link";
 
 const navItems = [
   { label: "Home", href: "#home" },
-  { label: "Pro plan", href: "#pro-plan" },
+  { label: "Pro plan", href: "#pricing" },
   { label: "Templates", href: "#templates" },
   { label: "User Guide", href: "#guide" },
 ];
 
-const templateCards = [
+const quickLinks = [
   {
-    title: "Slack to Summary",
-    description: "Trigger from Slack, summarize with AI, and post the result back to the channel.",
+    title: "Deploy on Vercel",
+    description: "Run the app on your production domain and keep local work isolated.",
+    href: "#guide",
   },
   {
-    title: "Webhook to Gmail",
-    description: "Accept external events, transform the payload, and send a polished Gmail response.",
+    title: "Connect Slack",
+    description: "Trigger workflows from Slack messages and send results back to channels.",
+    href: "#templates",
   },
   {
-    title: "Delay and Retry Flow",
-    description: "Build reliable automations with conditional branches, retries, and delayed resumes.",
+    title: "Best Practice & Showcase",
+    description: "Start with reliable templates for branches, retries, delays, and alerts.",
+    href: "#templates",
   },
 ];
 
-const guideSteps = [
-  "Start from a trigger node such as Slack, Cron, or Webhook.",
-  "Connect AI, HTTP, Gmail, or Conditional nodes to shape the workflow.",
-  "Use the inspector to verify execution, errors, retries, and branches.",
-  "Upgrade to Pro when you are ready for higher limits and more runs.",
+const features = [
+  {
+    title: "Visual Builder",
+    description: "Design workflows on a React Flow canvas with triggers, actions, and logic nodes.",
+  },
+  {
+    title: "Branching Logic",
+    description: "Use conditional, error, loop, retry, and delay paths for real automation flows.",
+  },
+  {
+    title: "Global Payments",
+    description: "Upgrade users with Razorpay and enforce usage limits without feature gating.",
+  },
+  {
+    title: "Run Inspector",
+    description: "Inspect node inputs, outputs, errors, retries, branches, and execution timing.",
+  },
 ];
+
+const templates = [
+  "Slack message to AI summary",
+  "Webhook to Gmail response",
+  "Cron report to Slack",
+  "HTTP failure to error branch",
+  "Delay follow-up reminder",
+  "JSON transform to action",
+];
+
+function AvatarStack() {
+  const people = ["FF", "AI", "SL", "GM", "CR", "HT"];
+
+  return (
+    <div className="avatar-row" aria-label="FlowForge contributors and integrations">
+      {people.map((person, index) => (
+        <span key={person} className="avatar" style={{ zIndex: people.length - index }}>
+          {person}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 export default function Home() {
   return (
-    <main
-      id="home"
-      style={{
-        minHeight: "100vh",
-        background:
-          "radial-gradient(circle at top left, rgba(20, 184, 166, 0.18), transparent 30%), radial-gradient(circle at top right, rgba(59, 130, 246, 0.16), transparent 28%), linear-gradient(180deg, #070b14 0%, #0b1120 45%, #050816 100%)",
-        color: "#f8fafc",
-      }}
-    >
-      <header
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 20,
-          backdropFilter: "blur(14px)",
-          background: "rgba(7, 11, 20, 0.7)",
-          borderBottom: "1px solid rgba(148, 163, 184, 0.12)",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1240,
-            margin: "0 auto",
-            padding: "18px 24px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 20,
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap" }}>
-            <Link
-              href="/"
-              style={{
-                fontSize: 22,
-                fontWeight: 800,
-                letterSpacing: 0.2,
-                textDecoration: "none",
-                color: "#f8fafc",
-              }}
-            >
-              FlowForge
-            </Link>
-            <nav style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
-              {navItems.map((item) => (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  style={{
-                    color: "#cbd5e1",
-                    textDecoration: "none",
-                    fontSize: 14,
-                    fontWeight: 600,
-                  }}
-                >
-                  {item.label}
-                </a>
-              ))}
-            </nav>
-          </div>
+    <main id="home" className="landing">
+      <header className="site-header">
+        <div className="nav-wrap">
+          <Link href="/" className="brand" aria-label="FlowForge home">
+            <span className="brand-mark">F</span>
+            <span>FlowForge</span>
+          </Link>
 
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <Link
-              href="/login"
-              style={{
-                padding: "10px 16px",
-                borderRadius: 999,
-                border: "1px solid rgba(148, 163, 184, 0.22)",
-                color: "#e2e8f0",
-                textDecoration: "none",
-                fontWeight: 600,
-                background: "rgba(15, 23, 42, 0.62)",
-              }}
-            >
+          <nav className="nav-links" aria-label="Main navigation">
+            {navItems.map((item) => (
+              <a href={item.href} key={item.label}>
+                {item.label}
+              </a>
+            ))}
+          </nav>
+
+          <div className="nav-actions">
+            <a className="stars" href="#templates" aria-label="Template count">
+              12 templates
+            </a>
+            <Link className="login-link" href="/login">
               Login
             </Link>
-            <Link
-              href="/login?mode=signup"
-              style={{
-                padding: "10px 16px",
-                borderRadius: 999,
-                border: "1px solid rgba(45, 212, 191, 0.35)",
-                color: "#001a16",
-                textDecoration: "none",
-                fontWeight: 700,
-                background: "linear-gradient(135deg, #5eead4 0%, #2dd4bf 100%)",
-                boxShadow: "0 18px 40px rgba(45, 212, 191, 0.22)",
-              }}
-            >
-              Signup
+            <Link className="signup-link" href="/login?mode=signup">
+              Sign up
             </Link>
           </div>
         </div>
       </header>
 
-      <section
-        style={{
-          maxWidth: 1240,
-          margin: "0 auto",
-          padding: "72px 24px 36px",
-          display: "grid",
-          gridTemplateColumns: "1.2fr 0.8fr",
-          gap: 28,
-          alignItems: "center",
-        }}
-      >
-        <div>
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "8px 12px",
-              borderRadius: 999,
-              border: "1px solid rgba(45, 212, 191, 0.24)",
-              background: "rgba(15, 23, 42, 0.62)",
-              color: "#99f6e4",
-              fontSize: 13,
-              fontWeight: 600,
-              marginBottom: 18,
-            }}
-          >
-            MVP launch ready
-          </div>
-          <h1
-            style={{
-              fontSize: "clamp(42px, 6vw, 72px)",
-              lineHeight: 1.02,
-              margin: 0,
-              maxWidth: 820,
-              letterSpacing: -1.8,
-            }}
-          >
-            Build workflows that branch, retry, delay, and ship with confidence.
-          </h1>
-          <p
-            style={{
-              marginTop: 18,
-              maxWidth: 700,
-              color: "#cbd5e1",
-              fontSize: 18,
-              lineHeight: 1.7,
-            }}
-          >
-            FlowForge is a workflow automation canvas for teams who want clean
-            triggers, clear execution logs, and a simple path from prototype to
-            production.
-          </p>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 28 }}>
-            <Link
-              href="/workflows"
-              style={{
-                padding: "13px 18px",
-                borderRadius: 14,
-                background: "linear-gradient(135deg, #14b8a6 0%, #0ea5e9 100%)",
-                color: "#f8fafc",
-                fontWeight: 700,
-                textDecoration: "none",
-                boxShadow: "0 18px 40px rgba(14, 165, 233, 0.22)",
-              }}
-            >
-              Open App
-            </Link>
-            <a
-              href="#templates"
-              style={{
-                padding: "13px 18px",
-                borderRadius: 14,
-                border: "1px solid rgba(148, 163, 184, 0.22)",
-                color: "#e2e8f0",
-                textDecoration: "none",
-                fontWeight: 700,
-                background: "rgba(15, 23, 42, 0.5)",
-              }}
-            >
-              View Templates
-            </a>
-          </div>
+      <section className="hero">
+        <h1>
+          Ship your workflows to the world easier with <span>FlowForge</span>
+        </h1>
+
+        <p className="hero-copy">
+          A focused workflow automation platform for building, running, and debugging
+          Slack, Gmail, HTTP, AI, webhook, and cron workflows from one canvas.
+        </p>
+
+        <div className="hero-actions">
+          <Link className="primary-action" href="/workflows">
+            Get Started
+          </Link>
+          <code>$ create flowforge-workflow</code>
         </div>
 
-        <div
-          style={{
-            padding: 22,
-            borderRadius: 24,
-            border: "1px solid rgba(148, 163, 184, 0.16)",
-            background:
-              "linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(2, 6, 23, 0.92) 100%)",
-            boxShadow: "0 30px 80px rgba(2, 6, 23, 0.45)",
-          }}
-        >
-          <div
-            style={{
-              padding: 16,
-              borderRadius: 18,
-              background: "rgba(15, 118, 110, 0.15)",
-              border: "1px solid rgba(45, 212, 191, 0.16)",
-              marginBottom: 16,
-            }}
-          >
-            <div style={{ color: "#99f6e4", fontSize: 12, textTransform: "uppercase", letterSpacing: 1.2 }}>
-              Live MVP banner
-            </div>
-            <div style={{ marginTop: 8, fontSize: 20, fontWeight: 700 }}>
-              Connect triggers to AI, email, Slack, and HTTP without losing visibility.
-            </div>
-          </div>
-
-          <div style={{ display: "grid", gap: 12 }}>
-            {[
-              { label: "Triggers", value: "Slack, Webhook, Cron" },
-              { label: "Logic", value: "Conditional, Retry, Delay, Loop" },
-              { label: "Actions", value: "AI, Gmail, Slack, HTTP" },
-            ].map((item) => (
-              <div
-                key={item.label}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 14,
-                  padding: 14,
-                  borderRadius: 16,
-                  background: "rgba(15, 23, 42, 0.68)",
-                  border: "1px solid rgba(148, 163, 184, 0.12)",
-                }}
-              >
-                <span style={{ color: "#94a3b8", fontSize: 13, textTransform: "uppercase" }}>{item.label}</span>
-                <span style={{ fontWeight: 600, textAlign: "right" }}>{item.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section
-        id="pro-plan"
-        style={{
-          maxWidth: 1240,
-          margin: "0 auto",
-          padding: "28px 24px 0",
-        }}
-      >
-        <div
-          style={{
-            borderRadius: 24,
-            padding: 24,
-            background: "rgba(15, 23, 42, 0.72)",
-            border: "1px solid rgba(148, 163, 184, 0.14)",
-            display: "grid",
-            gap: 18,
-          }}
-        >
+        <div className="social-proof">
+          <AvatarStack />
           <div>
-            <div style={{ color: "#5eead4", fontSize: 12, textTransform: "uppercase", letterSpacing: 1.2 }}>
-              Pro plan
-            </div>
-            <h2 style={{ margin: "8px 0 0", fontSize: 30 }}>Built for heavier usage and more production-ready workflows.</h2>
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: 14,
-            }}
-          >
-            {[
-              "Higher workflow limits",
-              "More monthly executions",
-              "Access to all node types",
-              "Reliable payment upgrade flow",
-            ].map((item) => (
-              <div
-                key={item}
-                style={{
-                  padding: 16,
-                  borderRadius: 16,
-                  background: "rgba(2, 6, 23, 0.48)",
-                  border: "1px solid rgba(148, 163, 184, 0.12)",
-                  color: "#e2e8f0",
-                  fontWeight: 600,
-                }}
-              >
-                {item}
-              </div>
-            ))}
+            <strong>Built for workflow operators</strong>
+            <span>Helping teams move from one-off scripts to observable automations.</span>
           </div>
         </div>
       </section>
 
-      <section
-        id="templates"
-        style={{
-          maxWidth: 1240,
-          margin: "0 auto",
-          padding: "36px 24px 0",
-        }}
-      >
-        <div style={{ marginBottom: 18 }}>
-          <div style={{ color: "#5eead4", fontSize: 12, textTransform: "uppercase", letterSpacing: 1.2 }}>
-            Templates
-          </div>
-          <h2 style={{ margin: "8px 0 0", fontSize: 30 }}>Starter flows you can build on immediately.</h2>
-        </div>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-            gap: 16,
-          }}
-        >
-          {templateCards.map((card) => (
-            <article
-              key={card.title}
-              style={{
-                padding: 20,
-                borderRadius: 20,
-                background: "rgba(15, 23, 42, 0.66)",
-                border: "1px solid rgba(148, 163, 184, 0.14)",
-              }}
-            >
-              <h3 style={{ marginTop: 0, marginBottom: 10, fontSize: 20 }}>{card.title}</h3>
-              <p style={{ margin: 0, color: "#cbd5e1", lineHeight: 1.7 }}>{card.description}</p>
-            </article>
+      <section className="quick-grid" aria-label="Quick actions">
+        {quickLinks.map((link) => (
+          <a className="quick-card" href={link.href} key={link.title}>
+            <strong>{link.title}</strong>
+            <span>{link.description}</span>
+          </a>
+        ))}
+      </section>
+
+      <section className="feature-grid" id="templates">
+        {features.map((feature) => (
+          <article key={feature.title} className="feature-card">
+            <h2>{feature.title}</h2>
+            <p>{feature.description}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="sponsor-strip" aria-label="FlowForge integrations">
+        <p>Loved by your stack</p>
+        <div>
+          {["Slack", "Gmail", "Gemini", "Supabase", "Razorpay", "Vercel"].map((item) => (
+            <span key={item}>{item}</span>
           ))}
         </div>
       </section>
 
-      <section
-        id="guide"
-        style={{
-          maxWidth: 1240,
-          margin: "0 auto",
-          padding: "36px 24px 72px",
-        }}
-      >
-        <div
-          style={{
-            borderRadius: 24,
-            padding: 24,
-            background: "rgba(15, 23, 42, 0.72)",
-            border: "1px solid rgba(148, 163, 184, 0.14)",
-          }}
-        >
-          <div style={{ color: "#5eead4", fontSize: 12, textTransform: "uppercase", letterSpacing: 1.2 }}>
-            User Guide
+      <section className="demo" id="guide">
+        <div className="section-heading">
+          <h2>
+            Watch a workflow run, then build your automation in <span>minutes</span>
+          </h2>
+          <p>
+            Trigger from Slack, branch with conditions, retry failed actions, and inspect
+            every node run without leaving the product.
+          </p>
+        </div>
+
+        <div className="product-shot" aria-label="FlowForge workflow canvas preview">
+          <div className="window-bar">
+            <span />
+            <span />
+            <span />
           </div>
-          <h2 style={{ margin: "8px 0 18px", fontSize: 30 }}>The shortest path to getting a workflow live.</h2>
-          <div style={{ display: "grid", gap: 12 }}>
-            {guideSteps.map((step, index) => (
-              <div
-                key={step}
-                style={{
-                  display: "flex",
-                  gap: 14,
-                  alignItems: "flex-start",
-                  padding: 16,
-                  borderRadius: 16,
-                  background: "rgba(2, 6, 23, 0.48)",
-                  border: "1px solid rgba(148, 163, 184, 0.12)",
-                }}
-              >
-                <div
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 999,
-                    display: "grid",
-                    placeItems: "center",
-                    flex: "0 0 auto",
-                    background: "linear-gradient(135deg, #14b8a6 0%, #0ea5e9 100%)",
-                    color: "#f8fafc",
-                    fontWeight: 800,
-                    fontSize: 13,
-                  }}
-                >
-                  {index + 1}
-                </div>
-                <div style={{ color: "#e2e8f0", lineHeight: 1.7 }}>{step}</div>
-              </div>
-            ))}
+          <div className="canvas-preview">
+            <div className="node trigger">Slack Trigger</div>
+            <div className="line line-one" />
+            <div className="node condition">Conditional</div>
+            <div className="line line-two" />
+            <div className="node ai">AI Transform</div>
+            <div className="line line-three" />
+            <div className="node action">Slack Send</div>
+            <aside>
+              <strong>Run Inspector</strong>
+              <span>Status: SUCCESS</span>
+              <span>Retries: 0</span>
+              <span>Duration: 2.8s</span>
+            </aside>
           </div>
         </div>
       </section>
+
+      <section className="pricing" id="pricing">
+        <div>
+          <p className="eyebrow">Pro plan</p>
+          <h2>Scale usage without locking node types behind a paywall.</h2>
+        </div>
+        <div className="pricing-list">
+          <span>Free: 5 workflows and 100 monthly executions</span>
+          <span>Pro: 1000 workflows and 10000 monthly executions</span>
+          <span>All plans include Slack, Gmail, AI, HTTP, Cron, Retry, Delay, Loop, and Conditional nodes</span>
+        </div>
+      </section>
+
+      <section className="templates">
+        <p className="eyebrow">Templates</p>
+        <h2>Start from practical workflow patterns.</h2>
+        <div className="template-cloud">
+          {templates.map((template) => (
+            <span key={template}>{template}</span>
+          ))}
+        </div>
+      </section>
+
+      <footer className="footer">
+        <span>Copyright © 2026 FlowForge. All rights reserved.</span>
+        <Link href="/login">Login</Link>
+      </footer>
+
+      <style>{`
+        .landing {
+          min-height: 100vh;
+          color: #0b1220;
+          background:
+            linear-gradient(rgba(15, 23, 42, 0.045) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(15, 23, 42, 0.045) 1px, transparent 1px),
+            #ffffff;
+          background-size: 36px 36px;
+          font-family: Arial, Helvetica, sans-serif;
+        }
+
+        .site-header {
+          position: sticky;
+          top: 0;
+          z-index: 50;
+          border-bottom: 1px solid #e5e7eb;
+          background: rgba(255, 255, 255, 0.88);
+          backdrop-filter: blur(16px);
+        }
+
+        .nav-wrap {
+          max-width: 1180px;
+          margin: 0 auto;
+          min-height: 68px;
+          padding: 0 22px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 22px;
+        }
+
+        .brand,
+        .nav-links a,
+        .nav-actions a,
+        .quick-card,
+        .footer a {
+          color: inherit;
+          text-decoration: none;
+        }
+
+        .brand {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          font-weight: 700;
+          white-space: nowrap;
+        }
+
+        .brand-mark {
+          width: 30px;
+          height: 30px;
+          display: grid;
+          place-items: center;
+          border: 1px solid #111827;
+          border-radius: 8px;
+          background: #111827;
+          color: #ffffff;
+          font-weight: 800;
+        }
+
+        .nav-links {
+          display: flex;
+          align-items: center;
+          gap: 22px;
+          color: #4b5563;
+          font-size: 14px;
+        }
+
+        .nav-actions {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-size: 14px;
+        }
+
+        .stars {
+          border: 1px solid #d1d5db;
+          border-radius: 999px;
+          padding: 7px 12px;
+          color: #374151;
+          background: #ffffff;
+        }
+
+        .login-link {
+          color: #374151;
+        }
+
+        .signup-link,
+        .primary-action {
+          border-radius: 999px;
+          background: #111827;
+          color: #ffffff !important;
+          font-weight: 700;
+        }
+
+        .signup-link {
+          padding: 9px 15px;
+        }
+
+        .hero {
+          max-width: 1040px;
+          margin: 0 auto;
+          padding: 96px 22px 34px;
+          text-align: center;
+        }
+
+        .hero h1 {
+          max-width: 930px;
+          margin: 0 auto;
+          font-size: 68px;
+          line-height: 1.06;
+          letter-spacing: 0;
+          font-weight: 800;
+        }
+
+        .hero h1 span {
+          display: inline-block;
+          color: #111827;
+        }
+
+        .hero-copy {
+          max-width: 720px;
+          margin: 22px auto 0;
+          color: #4b5563;
+          font-size: 18px;
+          line-height: 1.75;
+        }
+
+        .hero-actions {
+          margin-top: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 14px;
+          flex-wrap: wrap;
+        }
+
+        .primary-action {
+          padding: 13px 20px;
+          text-decoration: none;
+        }
+
+        .hero-actions code {
+          padding: 12px 16px;
+          border: 1px solid #d1d5db;
+          border-radius: 999px;
+          background: #f9fafb;
+          color: #111827;
+          font-size: 14px;
+        }
+
+        .social-proof {
+          margin-top: 34px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 16px;
+          color: #4b5563;
+          font-size: 14px;
+        }
+
+        .social-proof div:last-child {
+          display: grid;
+          gap: 3px;
+          text-align: left;
+        }
+
+        .social-proof strong {
+          color: #111827;
+        }
+
+        .avatar-row {
+          display: flex;
+          align-items: center;
+          padding-left: 14px;
+        }
+
+        .avatar {
+          width: 34px;
+          height: 34px;
+          margin-left: -14px;
+          display: grid;
+          place-items: center;
+          border: 2px solid #ffffff;
+          border-radius: 999px;
+          background: #111827;
+          color: #ffffff;
+          font-size: 11px;
+          font-weight: 800;
+        }
+
+        .quick-grid,
+        .feature-grid,
+        .sponsor-strip,
+        .demo,
+        .pricing,
+        .templates,
+        .testimonials,
+        .footer {
+          max-width: 1180px;
+          margin: 0 auto;
+          padding-left: 22px;
+          padding-right: 22px;
+        }
+
+        .quick-grid {
+          padding-top: 32px;
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 16px;
+        }
+
+        .quick-card {
+          min-height: 128px;
+          padding: 20px;
+          display: grid;
+          align-content: start;
+          gap: 12px;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.86);
+          box-shadow: 0 18px 46px rgba(15, 23, 42, 0.06);
+        }
+
+        .quick-card span,
+        .feature-card p,
+        .section-heading p,
+        .pricing-list,
+        .footer {
+          color: #4b5563;
+        }
+
+        .feature-grid {
+          padding-top: 56px;
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 18px;
+        }
+
+        .feature-card {
+          padding: 8px 0;
+        }
+
+        .feature-card h2 {
+          margin: 0 0 10px;
+          font-size: 22px;
+        }
+
+        .feature-card p {
+          margin: 0;
+          line-height: 1.7;
+        }
+
+        .sponsor-strip {
+          padding-top: 54px;
+          text-align: center;
+        }
+
+        .sponsor-strip p,
+        .eyebrow {
+          margin: 0 0 18px;
+          color: #6b7280;
+          font-size: 13px;
+          text-transform: uppercase;
+          letter-spacing: 0;
+          font-weight: 700;
+        }
+
+        .sponsor-strip div,
+        .template-cloud {
+          display: flex;
+          justify-content: center;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .sponsor-strip span,
+        .template-cloud span {
+          border: 1px solid #d1d5db;
+          border-radius: 999px;
+          background: #ffffff;
+          padding: 10px 14px;
+          color: #374151;
+          font-weight: 700;
+          font-size: 14px;
+        }
+
+        .demo {
+          padding-top: 76px;
+        }
+
+        .section-heading {
+          text-align: center;
+          max-width: 760px;
+          margin: 0 auto 30px;
+        }
+
+        .section-heading h2,
+        .pricing h2,
+        .templates h2 {
+          margin: 0;
+          font-size: 44px;
+          line-height: 1.14;
+          letter-spacing: 0;
+        }
+
+        .section-heading h2 span {
+          color: #16a34a;
+        }
+
+        .section-heading p {
+          margin: 14px auto 0;
+          font-size: 17px;
+          line-height: 1.7;
+        }
+
+        .product-shot {
+          overflow: hidden;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          background: #f8fafc;
+          box-shadow: 0 28px 70px rgba(15, 23, 42, 0.14);
+        }
+
+        .window-bar {
+          height: 42px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 0 16px;
+          border-bottom: 1px solid #e5e7eb;
+          background: #ffffff;
+        }
+
+        .window-bar span {
+          width: 11px;
+          height: 11px;
+          border-radius: 50%;
+          background: #111827;
+          opacity: 0.22;
+        }
+
+        .canvas-preview {
+          min-height: 430px;
+          position: relative;
+          background:
+            linear-gradient(rgba(17, 24, 39, 0.06) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(17, 24, 39, 0.06) 1px, transparent 1px),
+            #f9fafb;
+          background-size: 28px 28px;
+        }
+
+        .node {
+          position: absolute;
+          width: 170px;
+          padding: 14px 16px;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          background: #ffffff;
+          box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08);
+          font-weight: 800;
+        }
+
+        .trigger { left: 8%; top: 70px; }
+        .condition { left: 31%; top: 158px; }
+        .ai { left: 54%; top: 86px; }
+        .action { left: 54%; top: 252px; }
+
+        .line {
+          position: absolute;
+          height: 2px;
+          background: #111827;
+          opacity: 0.28;
+          transform-origin: left center;
+        }
+
+        .line-one { width: 170px; left: 22%; top: 142px; transform: rotate(22deg); }
+        .line-two { width: 160px; left: 45%; top: 176px; transform: rotate(-24deg); }
+        .line-three { width: 160px; left: 45%; top: 218px; transform: rotate(24deg); }
+
+        .canvas-preview aside {
+          position: absolute;
+          right: 7%;
+          bottom: 58px;
+          width: 220px;
+          padding: 18px;
+          display: grid;
+          gap: 9px;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          background: #111827;
+          color: #ffffff;
+          box-shadow: 0 18px 46px rgba(15, 23, 42, 0.18);
+        }
+
+        .canvas-preview aside span {
+          color: #d1d5db;
+          font-size: 14px;
+        }
+
+        .pricing,
+        .templates {
+          padding-top: 76px;
+          display: grid;
+          grid-template-columns: 0.9fr 1.1fr;
+          gap: 28px;
+          align-items: start;
+        }
+
+        .pricing-list {
+          display: grid;
+          gap: 12px;
+          line-height: 1.7;
+        }
+
+        .pricing-list span {
+          padding-bottom: 12px;
+          border-bottom: 1px solid #e5e7eb;
+        }
+
+        .template-cloud {
+          justify-content: flex-start;
+        }
+
+        .footer {
+          padding-top: 72px;
+          padding-bottom: 32px;
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+          border-top: 1px solid #e5e7eb;
+          margin-top: 72px;
+          font-size: 14px;
+        }
+
+        @media (max-width: 920px) {
+          .nav-wrap {
+            justify-content: center;
+          }
+
+          .nav-links {
+            order: 3;
+            width: 100%;
+            justify-content: center;
+          }
+
+          .hero {
+            padding-top: 68px;
+          }
+
+          .hero h1 {
+            font-size: 46px;
+          }
+
+          .quick-grid,
+          .feature-grid,
+          .pricing,
+          .templates {
+            grid-template-columns: 1fr;
+          }
+
+          .feature-card {
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 18px;
+          }
+
+          .canvas-preview {
+            min-height: 500px;
+          }
+
+          .node {
+            left: 24px !important;
+            right: 24px;
+            width: auto;
+          }
+
+          .trigger { top: 36px; }
+          .condition { top: 116px; }
+          .ai { top: 196px; }
+          .action { top: 276px; }
+
+          .line {
+            display: none;
+          }
+
+          .canvas-preview aside {
+            left: 24px;
+            right: 24px;
+            bottom: 28px;
+            width: auto;
+          }
+        }
+
+        @media (max-width: 620px) {
+          .nav-actions {
+            width: 100%;
+            justify-content: center;
+            flex-wrap: wrap;
+          }
+
+          .stars {
+            display: none;
+          }
+
+          .hero h1 {
+            font-size: 38px;
+          }
+
+          .hero-copy {
+            font-size: 16px;
+          }
+
+          .social-proof {
+            align-items: flex-start;
+          }
+
+          .section-heading h2,
+          .pricing h2,
+          .templates h2 {
+            font-size: 32px;
+          }
+
+          .footer {
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+          }
+        }
+      `}</style>
     </main>
   );
 }
